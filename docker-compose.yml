@@ -1,0 +1,72 @@
+version: '3.8'
+
+services:
+  # TimescaleDB (PostgreSQL with Time-series extension)
+  timescaledb:
+    image: timescale/timescaledb:latest-pg15
+    container_name: ev_platform_timescaledb
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgrespassword
+      POSTGRES_DB: ev_platform
+    ports:
+      - "5432:5432"
+    volumes:
+      - timescale_data:/var/lib/postgresql/data
+      - ./infrastructure/timescaledb/init.sql:/docker-entrypoint-initdb.d/init.sql
+    restart: unless-stopped
+
+  # Neo4j Graph Database (Supply Chain Dependency Graph)
+  neo4j:
+    image: neo4j:5.12.0-community
+    container_name: ev_platform_neo4j
+    ports:
+      - "7474:7474" # HTTP Dashboard
+      - "7687:7687" # Bolt protocol
+    environment:
+      NEO4J_AUTH: neo4j/neo4jpassword
+    volumes:
+      - neo4j_data:/data
+      - neo4j_logs:/logs
+      - ./infrastructure/neo4j:/var/lib/neo4j/import
+    restart: unless-stopped
+
+  # Mosquitto MQTT Broker (Telemetry Live Ingestion)
+  mosquitto:
+    image: eclipse-mosquitto:2.0.15
+    container_name: ev_platform_mqtt
+    ports:
+      - "1883:1883" # MQTT Port
+      - "9001:9001" # WebSockets
+    volumes:
+      - ./infrastructure/mosquitto/mosquitto.conf:/mosquitto/config/mosquitto.conf
+    restart: unless-stopped
+
+  # Zookeeper (Kafka coordinator)
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.3.0
+    container_name: ev_platform_zookeeper
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+
+  # Apache Kafka (Event Streaming & Telemetry Pipeline)
+  kafka:
+    image: confluentinc/cp-kafka:7.3.0
+    container_name: ev_platform_kafka
+    depends_on:
+      - zookeeper
+    ports:
+      - "9092:9092"
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:29092,PLAINTEXT_HOST://localhost:9092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+
+volumes:
+  timescale_data:
+  neo4j_data:
+  neo4j_logs:

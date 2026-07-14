@@ -1,41 +1,115 @@
 # Industrial EV AI Platform
 
-An enterprise-grade platform for EV Supply Chain & Asset Intelligence. Designed for industrial IoT architectures, real-time telemetry streaming, battery degradation intelligence, Neo4j supply chain graph analytics, predictive maintenance systems, and carbon & sustainability reporting.
-
-This project was bootstrapped to align with a **2-Week Hackathon** implementation guide.
+An enterprise-grade, end-to-end Industrial IoT (IIoT) analytics and intelligence platform designed for electric vehicle (EV) fleet asset monitoring, predictive maintenance, supply chain graph analysis, and carbon accounting.
 
 ---
 
-## 🛠️ Repository & Architecture Layout
+## 🏗️ System Architecture
 
-The repository is structured as a mono-repo to facilitate seamless collaboration across different members:
+The platform is designed around a decoupled, highly scalable event-driven architecture to support sub-second telemetry ingestion, graph traversal, and ML inference.
+
+```mermaid
+graph TD
+    %% Telemetry Stream Ingestion
+    subgraph Data Generation & Ingestion
+        Sim[EV Telemetry Simulator] -->|MQTT Publish| Mosquitto[Eclipse Mosquitto Broker]
+        Mosquitto -->|ev/battery/*| KP[Kafka Producer Bridge]
+        KP -->|Event Ingestion| Kafka[Apache Kafka Broker]
+    end
+
+    %% Storage & Streaming Analytics
+    subgraph Data Storage & Real-Time Processing
+        Kafka -->|Kafka Consumer| TSDB[(TimescaleDB hypertable)]
+        Kafka -->|Live WebSockets| FastAPI[FastAPI Web Server]
+    end
+
+    %% Databases & Models
+    subgraph Data Models & Intelligence
+        FastAPI -->|REST API & Cypher Queries| Neo4j[(Neo4j Graph Database)]
+        FastAPI -->|ML Feature Vector| ML[Predictive AI Engine]
+        ML -->|Isolation Forest| Anom[Anomaly Detection]
+        ML -->|XGBoost| RUL[Remaining Useful Life]
+    end
+
+    %% Presentation Layer
+    subgraph Presentation
+        FastAPI -->|WebSocket & JSON APIs| React[React + TS Dashboard]
+    end
+
+    classDef db fill:#2f3b52,stroke:#4f5d75,stroke-width:2px;
+    classDef broker fill:#1f3322,stroke:#2a5c37,stroke-width:2px;
+    classDef engine fill:#3d1a3d,stroke:#732973,stroke-width:2px;
+    class TSDB,Neo4j db;
+    class Mosquitto,Kafka broker;
+    class ML,Anom,RUL engine;
+```
+
+---
+
+## 🌟 Key Platform Capabilities
+
+### 1. High-Throughput Telemetry Streaming
+*   Continuous state transmission (Voltage, Current, State of Charge, Core temperature) via **MQTT**.
+*   Buffered event ingestion using **Apache Kafka** partitioned topic distributions.
+*   Timeseries persistence leveraging **TimescaleDB** hypertables with dynamic temporal indexing and range-partition optimizations.
+
+### 2. Battery & Predictive Maintenance Intelligence
+*   **State of Health (SoH) Analytics:** Tracks capacity fade using cumulative discharge integration (Ah depletion curves).
+*   **Remaining Useful Life (RUL) Forecasting:** Predicts cycles remaining until battery capacity falls below the 80% degradation threshold using **XGBoost regression**.
+*   **Anomaly Diagnostics:** Identifies thermal runaways and cell-level voltage imbalances using unsupervised **Isolation Forest models**.
+
+### 3. Supply Chain Graph Analytics
+*   Maps multi-tier mineral dependencies (Mine ➔ Refiner ➔ Battery Plant ➔ Assembly Pack ➔ Fleet Vehicle) using **Neo4j Graph Database**.
+*   Propagates cascading risks (geopolitical instability, shipping bottlenecks, and material shortage) along supply chains utilizing optimized Cypher graph traversal algorithms.
+
+### 4. Carbon & Electrification Analytics
+*   Displaces direct Scope-1 combustion emissions vs Scope-3 charging grid emissions (based on local carbon intensity coefficients).
+*   Calculates EV conversion suitability scores for internal combustion engine (ICE) routes based on payload, travel distances, charging station density, and depot dwell times.
+
+---
+
+## 🛠️ Tech Stack Alignment
+
+| Layer | Technologies | Key Functionality |
+| :--- | :--- | :--- |
+| **Frontend UI** | React, TypeScript, TailwindCSS, ShadCN UI, Recharts | Control dashboard views, responsive metrics widgets, live WebSocket visualization |
+| **API Backend** | FastAPI, SQLAlchemy, Pydantic, Uvicorn | REST endpoints, Swagger/OpenAPI documentation, WebSocket gateways |
+| **Databases** | TimescaleDB (PostgreSQL), Neo4j Graph Database | Scalable telemetry timeseries, multi-tier dependency mapping |
+| **Event Pipeline** | Eclipse Mosquitto (MQTT), Apache Kafka, Zookeeper | Sub-second telemetry publisher/subscriber and streaming queues |
+| **AI/ML Stack** | NumPy, Pandas, Scikit-Learn, XGBoost | Data preprocessing, anomaly isolation, RUL regression forecasts |
+
+---
+
+## 📂 Repository Folder Layout
 
 ```
 ├── .gitignore                      # Python, Node, environment configurations ignore
 ├── docker-compose.yml              # Local infrastructure stack (TimescaleDB, Neo4j, MQTT, Kafka)
 ├── README.md                       # This document
-├── frontend/                       # React + TS + TailwindCSS + ShadCN UI (Member 1)
+├── frontend/                       # React + TS + TailwindCSS Dashboard UI
 │   ├── package.json                # Frontend package dependencies
-│   ├── tsconfig.json               # TypeScript config
-│   ├── tailwind.config.js          # Tailwind styling configuration
+│   ├── tsconfig.json               # TypeScript compiler config
+│   ├── tailwind.config.js          # Tailwind theme configurations
+│   ├── components.json            # ShadCN UI components config
 │   ├── src/
-│   │   ├── components/             # Reusable widgets (gauges, charts, panels)
-│   │   ├── layouts/                # Sidebar, Navbar, page containers (Shell)
-│   │   └── pages/                  # Dashboard pages (Fleet, Battery, Supply Chain, Alerts, Carbon)
-├── backend/                        # FastAPI REST/WebSocket Server (Member 2)
-│   ├── requirements.txt            # Backend Python dependencies
+│   │   ├── components/             # Reusable UI widgets (gauges, alerts panels)
+│   │   ├── layouts/                # Dashboard sidebar and navbar shell
+│   │   ├── pages/                  # Route views (Fleet, Battery, Supply Chain, Carbon, Alerts)
+│   │   └── router/                 # React Router definition mappings
+├── backend/                        # FastAPI Web API Backend
+│   ├── requirements.txt            # Python web server dependencies
 │   ├── app/
-│   │   ├── main.py                 # FastAPI entrance & configurations
-│   │   ├── models/                 # SQLAlchemy schemas (telemetry, alerts, logs)
-│   │   ├── schemas/                # Pydantic schemas
-│   │   └── api/                    # Routers (health, telemetry, ML, supply chain, sustainability)
-├── ml/                             # AI/ML & Telemetry Simulator (Member 3)
+│   │   ├── main.py                 # FastAPI core initializations & configurations
+│   │   ├── models/                 # SQLAlchemy schemas (telemetry, charging logs)
+│   │   ├── schemas/                # Pydantic serialization models
+│   │   └── api/                    # Routers (health, live telemetry, ML, Neo4j supply chain)
+├── ml/                             # ML Analytics & Synthetic Data Ingestion
 │   ├── requirements.txt            # Data science packages
-│   ├── notebooks/                  # Exploratory Data Analysis & training
-│   ├── src/                        # Preprocessing and model inference scripts
+│   ├── notebooks/                  # EDA, NASA battery dataset profiling, model files
+│   ├── src/                        # Preprocessing pipelines (thermal variance, discharge slope)
 │   └── simulator/                  # Paho-MQTT based synthetic telemetry stream simulator
-└── infrastructure/                 # Databases, brokers, and streaming (Member 4)
-    ├── timescaledb/                # Init SQL, partitions, hypertable setups
+└── infrastructure/                 # Databases, brokers, and streaming configurations
+    ├── timescaledb/                # Hypertable init scripts & partitioning queries
     ├── neo4j/                      # Cypher query imports & relationship setup
     ├── kafka/                      # Kafka producers & consumers
     └── mosquitto/                  # MQTT broker configurations
@@ -43,61 +117,16 @@ The repository is structured as a mono-repo to facilitate seamless collaboration
 
 ---
 
-## 🗓️ 2-Week Hackathon Execution Plan
-
-### Day 1 — Project Foundation & System Design
-- **Member 1 (Frontend):** Initialize React + TS project, install Tailwind + ShadCN UI, set up routing.
-- **Member 2 (Backend):** Initialize FastAPI backend, Swagger/OpenAPI docs, health checks, CORS.
-- **Member 3 (AI/ML):** Download datasets (NASA Battery, Oxford, C-MAPSS), start exploratory analysis.
-- **Member 4 (Infrastructure):** Setup Docker Compose, PostgreSQL + TimescaleDB, Neo4j, Kafka, Mosquitto.
-
-### Day 2 — Databases & Streaming Foundation
-- **Member 1 (Frontend):** Design wireframes for Fleet, Battery, Supply Chain, Alerts, and Carbon.
-- **Member 2 (Backend):** Define SQLAlchemy schemas (telemetry, charging_sessions, battery_health, alerts, etc.).
-- **Member 3 (AI/ML):** Build preprocessing pipelines (normalization, capacity fade, thermal variance).
-- **Member 4 (Infrastructure):** Set up MQTT and Kafka topics (`ev/battery`, `ev/charging`, etc.).
-
-### Day 3 — Telemetry Simulation & Live Pipelines
-- **Member 1 (Frontend):** Build live widgets (gauges, cards, Apache ECharts/Recharts).
-- **Member 2 (Backend):** Develop REST APIs for `/telemetry/live`, `/battery/status`, etc.
-- **Member 3 (AI/ML):** Build Telemetry Simulator (simulating SoC, thermal spikes, battery degradation).
-- **Member 4 (Infrastructure):** Deploy end-to-end telemetry pipeline (MQTT ➔ Kafka ➔ FastAPI).
-
-### Day 4-5 — AI & Predictive Maintenance
-- **Member 1 (Frontend):** Build Remaining Useful Life (RUL) charts and anomaly warning notifications.
-- **Member 2 (Backend):** Create ML inference APIs (`/predict/rul`, `/predict/soh`, etc.) & WebSockets.
-- **Member 3 (AI/ML):** Train XGBoost (RUL), Isolation Forest (anomalies), and regression models.
-- **Member 4 (Infrastructure):** Optimize TimescaleDB storage (indexing, partitioning, hypertables).
-
-### Day 6-7 — Supply Chain Graph Intelligence
-- **Member 1 (Frontend):** Build dependency graph visualization and supplier risk heatmaps.
-- **Member 2 (Backend):** Develop Neo4j-integrated APIs (`/suppliers`, `/risk`, `/dependencies`).
-- **Member 3 (AI/ML):** Build supply chain risk scoring engine (supplier concentration, price spikes).
-- **Member 4 (Infrastructure):** Build Neo4j nodes and Cypher relationship pathways.
-
-### Day 8-10 — Carbon & Fleet Electrification
-- **Member 1 (Frontend):** Build CO₂ savings dashboards and electrification readiness scorecards.
-- **Member 2 (Backend):** Develop calculation endpoints for carbon and EV savings.
-- **Member 3 (AI/ML):** Implement Scope-1 and Scope-3 emission estimators.
-- **Member 4 (Infrastructure):** Integrate OpenStreetMap / Open Charge Map geospatial layers.
-
-### Day 11-14 — Polish, Test & Deploy
-- UI polishing, animation refinement.
-- End-to-end performance and latency testing.
-- Deploy frontend (Vercel), backend (Railway/Render), database cluster.
-- Final pitch preparation (architecture diagrams, demo videos).
-
----
-
-## ⚡ Quick Start
+## ⚡ Quick Start & Setup
 
 ### 1. Pre-requisites
-- Docker & Docker Compose
-- Node.js (v18+)
-- Python (v3.10+)
+Ensure you have the following installed locally:
+*   [Docker & Docker Compose](https://docs.docker.com/get-docker/)
+*   [Node.js (v18+)](https://nodejs.org/)
+*   [Python (v3.10+)](https://www.python.org/)
 
 ### 2. Infrastructure Setup
-Spin up the data stack (PostgreSQL, TimescaleDB, Neo4j, MQTT, Kafka):
+Spin up the local containerized databases, brokers, and event pipelines:
 ```bash
 docker compose up -d
 ```
@@ -110,6 +139,7 @@ source .venv/bin/activate  # On Windows: .venv\Scripts\activate
 pip install -r requirements.txt
 uvicorn app.main:app --reload
 ```
+*Access the API documentation at [http://localhost:8000/docs](http://localhost:8000/docs).*
 
 ### 4. Frontend Setup
 ```bash
@@ -117,8 +147,10 @@ cd frontend
 npm install
 npm run dev
 ```
+*Access the control dashboard interface at [http://localhost:3000](http://localhost:3000).*
 
 ### 5. Running the Simulator
+Generate synthetic EV telemetry streams to feed the MQTT broker:
 ```bash
 cd ml
 pip install -r requirements.txt

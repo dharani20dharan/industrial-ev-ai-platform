@@ -1,0 +1,38 @@
+{
+  "feature_columns": [
+    "capacity_ah",
+    "avg_voltage_v",
+    "voltage_charged_v",
+    "voltage_discharged_v",
+    "avg_temperature_c",
+    "max_temperature_c",
+    "internal_resistance_ohm",
+    "charge_transfer_resistance_ohm",
+    "discharge_time_s",
+    "charge_efficiency_percent",
+    "discharge_slope_v_per_s",
+    "capacity_degradation_rate",
+    "thermal_variance",
+    "voltage_spread",
+    "resistance_growth_rate",
+    "temp_rolling_std"
+  ],
+  "thresholds": {
+    "score_mean": 0.07490448308004012,
+    "score_std": 0.040329323618395196,
+    "score_min": -0.14127468862902748,
+    "score_max": 0.12420221863504877,
+    "anomaly_threshold": 5.551115123125783e-17,
+    "warning_threshold": 0.013478784003670197
+  },
+  "physical_limits": {
+    "temperature_max": 55.0,
+    "temperature_warning": 45.0,
+    "voltage_min": 300.0,
+    "voltage_max": 420.0,
+    "current_max": 250.0,
+    "soc_drop_max": 15.0,
+    "soc_min": 3.0
+  },
+  "saved_at": "2026-07-15T13:26:00.434910"
+}

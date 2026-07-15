@@ -2,7 +2,7 @@ import time
 import json
 import random
 import argparse
-from datetime import datetime
+from datetime import datetime,timezone
 import numpy as np
 
 try:
@@ -18,7 +18,7 @@ class TelemetrySimulator:
         self.broker = broker_address
         self.port = broker_port
         self.client = None
-        
+
         # State profiles for vehicles: nominal capacity, current soc, temperature, cycle counts
         self.states = {
             vid: {
@@ -34,7 +34,7 @@ class TelemetrySimulator:
         if mqtt is None:
             print("Simulator starting in dry-run mode (MQTT packages missing).")
             return False
-            
+
         self.client = mqtt.Client(callback_api_version=mqtt.CallbackAPIVersion.VERSION2 if hasattr(mqtt, 'CallbackAPIVersion') else None)
         try:
             self.client.connect(self.broker, self.port, 60)
@@ -49,45 +49,69 @@ class TelemetrySimulator:
     def simulate_step(self):
         for vid in VEHICLE_IDS:
             state = self.states[vid]
-            
-            # Simulate SOC dropping or raising based on current charging logic
-            # Let's say vehicles are active (discharging)
+
+            # --- Simulated Physics Engine Logic ---
             is_charging = vid == "EV-HD-002"
-            
+
             if is_charging:
                 state["soc"] = min(100.0, state["soc"] + random.uniform(0.1, 0.4))
-                current = random.uniform(-60.0, -20.0)  # negative current represents charge
+                current = random.uniform(-60.0, -20.0)  # negative represents charge
                 voltage = 380 + (state["soc"] * 0.3)
                 state["temperature"] = min(50.0, state["temperature"] + random.uniform(-0.1, 0.3))
+                speed = 0.0
+                motor_rpm = 0
+                power_output = round(float(voltage * current / 1000.0), 2)  # negative power during charge
             else:
                 state["soc"] = max(10.0, state["soc"] - random.uniform(0.05, 0.2))
                 current = random.uniform(10.0, 45.0)  # positive represents discharge
                 voltage = 400 - ((100 - state["soc"]) * 0.3)
                 state["temperature"] = max(25.0, state["temperature"] + random.uniform(-0.2, 0.2))
+                speed = round(random.uniform(40.0, 90.0), 2)
+                motor_rpm = int(speed * 50 + random.uniform(-100, 100))
+                power_output = round(float(voltage * current / 1000.0), 2)
 
-            # Simulate thermal anomaly on EV-HD-004
             if vid == "EV-HD-004" and random.random() < 0.15:
-                state["temperature"] += random.uniform(2.0, 5.0)  # Thermal spike!
+                state["temperature"] += random.uniform(2.0, 5.0)
                 print(f"[ANOMALY WARNING] Simulated thermal runaway surge on {vid}")
 
-            # Battery degradation progression
-            state["cycles"] += int(random.random() < 0.01) # incremental cycle increase
-            
-            payload = {
+            state["cycles"] += int(random.random() < 0.01)
+
+            # ISO-8601 UTC timestamp format compliance string
+            timestamp_str = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+            # --- Contract Payload 1: General EV Telemetry (Topic: ev/telemetry) ---
+            telemetry_payload = {
                 "vehicle_id": vid,
-                "timestamp": datetime.utcnow().isoformat(),
-                "voltage": round(float(voltage), 2),
-                "current": round(float(current), 2),
-                "temperature": round(float(state["temperature"]), 2),
-                "soc": round(float(state["soc"]), 1),
-                "cycle_count": state["cycles"]
+                "timestamp": timestamp_str,
+                "speed": speed,
+                "odometer": round(15000.0 + (state["cycles"] * 2.5), 2),
+                "motor_rpm": motor_rpm,
+                "power_output": power_output,
+                "ambient_temperature": round(random.uniform(20.0, 30.0), 1)
             }
 
-            topic = f"ev/battery/{vid}"
+            # --- Contract Payload 2: Battery Telemetry (Topic: ev/battery) ---
+            battery_payload = {
+                "vehicle_id": vid,
+                "timestamp": timestamp_str,
+                "soc": round(float(state["soc"]), 1),
+                "soh": round(100.0 - (state["cycles"] * 0.015), 2),  # Degrades gradually over cycles
+                "voltage": round(float(voltage), 2),
+                "current": round(float(current), 2),
+                "capacity": 75.0,  # Nominal capacity in kWh
+                "cycle_count": state["cycles"],
+                "internal_resistance": round(0.01 + (state["cycles"] * 0.00005), 5),
+                "cell_temperature": round(float(state["temperature"]), 2)
+            }
+
+            # --- Publishing Engine Block ---
             if self.client:
-                self.client.publish(topic, json.dumps(payload))
+                # Direct match to specifications using flat base paths
+                self.client.publish("ev/telemetry", json.dumps(telemetry_payload), qos=1)
+                self.client.publish("ev/battery", json.dumps(battery_payload), qos=1)
             else:
-                print(f"[SIMULATED STREAM] TOPIC: {topic} | DATA: {payload}")
+                print(f"[SIMULATED STREAM] TOPIC: ev/telemetry | DATA: {telemetry_payload}")
+                print(f"[SIMULATED STREAM] TOPIC: ev/battery | DATA: {battery_payload}")
 
     def run(self, interval=1.0):
         print("Starting EV Telemetry Simulation loop. Press Ctrl+C to terminate.")

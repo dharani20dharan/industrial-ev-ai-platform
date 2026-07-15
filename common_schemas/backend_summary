@@ -179,8 +179,7 @@ Vehicle Status
 
 Supply Chain Service
       │
-      ▼
-
+      
 Neo4j Database
 
 Supplier Graph

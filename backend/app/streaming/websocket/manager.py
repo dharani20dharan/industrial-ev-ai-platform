@@ -38,6 +38,11 @@ class WebSocketManager:
 
     async def broadcast(self, topic: str, payload: Dict[str, Any]) -> None:
         """Pushes an event payload to all clients subscribed to the topic."""
+        
+        print(f"\n--- [LIVE BUS EVENT] Topic: {topic} ---")
+        print(json.dumps(payload, indent=2))
+        print("-" * 40)
+        
         # Convert the dictionary payload to a JSON string for transmission
         message = json.dumps({"topic": topic, "data": payload})
         

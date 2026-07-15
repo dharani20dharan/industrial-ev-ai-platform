@@ -1,6 +1,14 @@
+import sys
+import os
+import asyncio
 import logging
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
+
+# Windows proactor event loop fix for aiomqtt socket polling
+if sys.platform.lower() == "win32" or os.name.lower() == "nt":
+    from asyncio import set_event_loop_policy, WindowsSelectorEventLoopPolicy
+    set_event_loop_policy(WindowsSelectorEventLoopPolicy())
 
 from app.core.logging import setup_logging
 from app.core.container import container
@@ -11,6 +19,11 @@ from app.streaming.websocket.adapter import kafka_to_ws_broadcaster
 
 from app.api.health import router as health_router
 from app.api.ws_routes import router as ws_router
+# Windows proactor event loop fix for aiomqtt socket polling
+if sys.platform.lower() == "win32" or os.name.lower() == "nt":
+    from asyncio import set_event_loop_policy, WindowsSelectorEventLoopPolicy
+    set_event_loop_policy(WindowsSelectorEventLoopPolicy())
+
 
 # Initialize early logging
 setup_logging()

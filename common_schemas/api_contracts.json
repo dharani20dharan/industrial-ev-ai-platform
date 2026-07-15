@@ -1,0 +1,1026 @@
+{
+  "info": {
+    "title": "Industrial EV AI Platform - API Contracts & Schemas",
+    "version": "1.0.0",
+    "description": "Standardized request and response payloads, event schemas, and WebSocket updates used by the backend developer to build and integrate services.",
+    "last_updated": "2026-07-15T14:20:00Z"
+  },
+  "streaming_event_envelope": {
+    "description": "Standardized event envelope wrapping all platform domain payloads transferred over Kafka/MQTT pipelines.",
+    "schema": {
+      "event_id": {
+        "type": "UUID",
+        "description": "Unique identifier for this specific event instance"
+      },
+      "event_type": {
+        "type": "string",
+        "description": "The type of event (e.g., 'telemetry.raw', 'battery.alert', 'predictions')"
+      },
+      "timestamp": {
+        "type": "string",
+        "format": "date-time",
+        "description": "UTC timestamp of event generation"
+      },
+      "source": {
+        "type": "string",
+        "description": "Originating service or simulator node name"
+      },
+      "vehicle_id": {
+        "type": "string",
+        "description": "Unique immutable ID of the industrial vehicle"
+      },
+      "fleet_id": {
+        "type": "string",
+        "description": "Identifier for the tracking fleet operational partition"
+      },
+      "correlation_id": {
+        "type": "UUID",
+        "description": "Tracing ID sustained across asynchronous boundaries"
+      },
+      "payload": {
+        "type": "object",
+        "description": "The concrete domain data model matching the event type"
+      }
+    },
+    "example": {
+      "event_id": "9b1deb4d-3b7d-4bad-9bdd-2b0d7b3dcb6d",
+      "event_type": "telemetry.processed",
+      "timestamp": "2026-07-15T14:15:00Z",
+      "source": "telemetry.processing.node-1",
+      "vehicle_id": "EV-HD-001",
+      "fleet_id": "FLEET-SOUTH-42",
+      "correlation_id": "c1a9c394-ff00-4b0d-85ba-197cc4fbe256",
+      "payload": {
+        "speed_kph": 58.4,
+        "odometer_km": 12450.2,
+        "motor_temperature_c": 64.2,
+        "torque_nm": 210.5,
+        "inverter_efficiency": 0.94
+      }
+    }
+  },
+  "streaming_payloads": {
+    "telemetry": {
+      "description": "Core kinematic data from the vehicle's engine and operational control units.",
+      "fields": {
+        "speed_kph": { "type": "float", "range": [0, 200], "default": 0.0 },
+        "odometer_km": { "type": "float", "min": 0, "default": 0.0 },
+        "motor_temperature_c": { "type": "float", "range": [-40, 150], "default": 65.0 },
+        "torque_nm": { "type": "float", "default": 210.5 },
+        "inverter_efficiency": { "type": "float", "range": [0, 1], "default": 0.94 }
+      }
+    },
+    "battery": {
+      "description": "Real-time electro-chemical battery state statistics.",
+      "fields": {
+        "state_of_charge_pct": { "type": "float", "range": [0, 100] },
+        "state_of_health_pct": { "type": "float", "range": [0, 100] },
+        "voltage": { "type": "float", "range": [0, 1000] },
+        "current_amps": { "type": "float" },
+        "cell_temperature_max_c": { "type": "float", "range": [-40, 100] },
+        "internal_resistance_ohm": { "type": "float", "min": 0 }
+      }
+    },
+    "location": {
+      "description": "High-precision positional telemetry coordinate data.",
+      "fields": {
+        "latitude": { "type": "float", "range": [-90, 90], "default": 39.7392 },
+        "longitude": { "type": "float", "range": [-180, 180], "default": -104.9903 },
+        "altitude_m": { "type": "float", "range": [-500, 9000], "default": 1609.0 },
+        "heading_deg": { "type": "float", "range": [0, 360], "default": 0.0 },
+        "gps_fix_quality": { "type": "int", "description": "0=Invalid, 1=GPS, 2=DGPS", "default": 1 }
+      }
+    },
+    "charging": {
+      "description": "State management metrics during an active battery charging session.",
+      "fields": {
+        "charger_id": { "type": "string", "default": "CHG-STATION-MOCK" },
+        "charging_rate_kw": { "type": "float", "min": 0, "default": 0.0 },
+        "time_to_full_mins": { "type": "float", "min": 0, "default": 0.0 },
+        "connector_type": { "type": "string", "description": "CCS2, Megawatt, etc.", "default": "CCS2" }
+      }
+    },
+    "status": {
+      "description": "High-level operating mode state flags.",
+      "fields": {
+        "operational_status": { "type": "string", "description": "READY, OPERATIONAL, FAULT, OFFLINE", "default": "OPERATIONAL" },
+        "active_error_codes": { "type": "array of strings", "default": [] },
+        "driver_id": { "type": "string", "nullable": true, "default": "SYSTEM_AUTO" }
+      }
+    },
+    "alerts": {
+      "description": "Immediate hardware or safety critical notifications.",
+      "fields": {
+        "alert_code": { "type": "string", "default": "CLR_00" },
+        "severity": { "type": "string", "description": "INFO, WARNING, CRITICAL", "default": "INFO" },
+        "component": { "type": "string", "description": "BATTERY, MOTOR, BRAKES, POWERTRAIN", "default": "SYSTEM" },
+        "description": { "type": "string", "default": "Healthy baseline initialization status." }
+      }
+    },
+    "heartbeat": {
+      "description": "Lightweight diagnostics asserting infrastructure network health.",
+      "fields": {
+        "uptime_seconds": { "type": "int", "min": 0, "default": 0 },
+        "firmware_version": { "type": "string", "default": "v1.0.0-mock" },
+        "signal_strength_dbm": { "type": "int", "max": 0, "default": -50 }
+      }
+    }
+  },
+  "rest_endpoints": {
+    "fleet_management": [
+      {
+        "path": "/api/v1/fleet",
+        "method": "GET",
+        "description": "Returns all registered fleets.",
+        "response": {
+          "success": true,
+          "message": "Fleet List",
+          "data": [
+            {
+              "fleet_id": 1,
+              "fleet_name": "South Region Fleet",
+              "organization": "ABC Logistics",
+              "total_vehicles": 42,
+              "location": "Chennai"
+            }
+          ]
+        }
+      },
+      {
+        "path": "/api/v1/fleet",
+        "method": "POST",
+        "description": "Creates a new fleet.",
+        "request": {
+          "fleet_name": "South Region Fleet",
+          "organization": "ABC Logistics",
+          "description": "Primary delivery fleet",
+          "location": "Chennai"
+        },
+        "response": {
+          "success": true,
+          "message": "Fleet Created",
+          "data": {
+            "fleet_id": 1
+          }
+        }
+      },
+      {
+        "path": "/api/v1/fleet/{fleet_id}",
+        "method": "GET",
+        "description": "Returns fleet details.",
+        "response": {
+          "success": true,
+          "message": "Fleet Details",
+          "data": {
+            "fleet_id": 1,
+            "fleet_name": "South Region Fleet",
+            "organization": "ABC Logistics",
+            "total_vehicles": 42
+          }
+        }
+      },
+      {
+        "path": "/api/v1/fleet/{fleet_id}",
+        "method": "PATCH",
+        "description": "Updates fleet information.",
+        "request": {
+          "fleet_name": "Updated Fleet",
+          "location": "Bangalore"
+        },
+        "response": {
+          "success": true,
+          "message": "Fleet Updated"
+        }
+      },
+      {
+        "path": "/api/v1/fleet/{fleet_id}",
+        "method": "DELETE",
+        "description": "Deletes a fleet.",
+        "response": {
+          "success": true,
+          "message": "Fleet Deleted"
+        }
+      },
+      {
+        "path": "/api/v1/fleet/summary",
+        "method": "GET",
+        "description": "Returns fleet-level KPIs for dashboard widgets.",
+        "response": {
+          "success": true,
+          "message": "Fleet Summary",
+          "data": {
+            "total_fleets": 5,
+            "total_vehicles": 120,
+            "active": 110,
+            "maintenance": 6,
+            "inactive": 4
+          }
+        }
+      },
+      {
+        "path": "/api/v1/vehicles",
+        "method": "GET",
+        "description": "Returns all registered vehicles.",
+        "query_params": {
+          "fleet_id": "integer (optional)",
+          "status": "string (optional)",
+          "vehicle_type": "string (optional)",
+          "page": "integer (default=1)",
+          "limit": "integer (default=50)"
+        },
+        "response": {
+          "success": true,
+          "message": "Vehicle List",
+          "data": [
+            {
+              "vehicle_id": "EV-001",
+              "fleet_id": 1,
+              "vehicle_number": "TN01AB1234",
+              "manufacturer": "Tata",
+              "model": "Ace EV",
+              "status": "ACTIVE"
+            }
+          ]
+        }
+      },
+      {
+        "path": "/api/v1/vehicles",
+        "method": "POST",
+        "description": "Registers a new vehicle.",
+        "request": {
+          "fleet_id": 1,
+          "vehicle_number": "TN01AB1234",
+          "vehicle_name": "Delivery Van 1",
+          "manufacturer": "Tata",
+          "model": "Ace EV",
+          "battery_capacity_kwh": 35,
+          "vehicle_type": "Cargo"
+        },
+        "response": {
+          "success": true,
+          "message": "Vehicle Registered",
+          "data": {
+            "vehicle_id": "EV-001"
+          }
+        }
+      },
+      {
+        "path": "/api/v1/vehicles/{vehicle_id}",
+        "method": "GET",
+        "description": "Returns complete vehicle information.",
+        "response": {
+          "success": true,
+          "message": "Vehicle Details",
+          "data": {
+            "vehicle_id": "EV-001",
+            "fleet_id": 1,
+            "manufacturer": "Tata",
+            "model": "Ace EV",
+            "battery_capacity_kwh": 35,
+            "status": "ACTIVE"
+          }
+        }
+      },
+      {
+        "path": "/api/v1/vehicles/{vehicle_id}",
+        "method": "PATCH",
+        "description": "Updates vehicle metadata.",
+        "request": {
+          "status": "MAINTENANCE"
+        },
+        "response": {
+          "success": true,
+          "message": "Vehicle Updated"
+        }
+      },
+      {
+        "path": "/api/v1/vehicles/{vehicle_id}",
+        "method": "DELETE",
+        "description": "Removes a vehicle from the fleet.",
+        "response": {
+          "success": true,
+          "message": "Vehicle Deleted"
+        }
+      },
+      {
+        "path": "/api/v1/vehicles/{vehicle_id}/profile",
+        "method": "GET",
+        "description": "Returns complete vehicle purchase and warranty profile.",
+        "response": {
+          "success": true,
+          "message": "Vehicle Profile",
+          "data": {
+            "vin": "MA3EV123456",
+            "firmware_version": "v2.1.0",
+            "battery_serial_number": "BAT-00982",
+            "purchase_date": "2024-01-01",
+            "warranty_expiry": "2032-01-01"
+          }
+        }
+      },
+      {
+        "path": "/api/v1/vehicles/{vehicle_id}/profile",
+        "method": "PATCH",
+        "description": "Updates profile information.",
+        "request": {
+          "firmware_version": "v2.2.0"
+        },
+        "response": {
+          "success": true,
+          "message": "Profile Updated"
+        }
+      },
+      {
+        "path": "/api/v1/vehicles/{vehicle_id}/assign",
+        "method": "POST",
+        "description": "Assigns a vehicle to a fleet.",
+        "request": {
+          "fleet_id": 2
+        },
+        "response": {
+          "success": true,
+          "message": "Vehicle Assigned"
+        }
+      },
+      {
+        "path": "/api/v1/vehicles/{vehicle_id}/unassign",
+        "method": "POST",
+        "description": "Removes vehicle assignment.",
+        "response": {
+          "success": true,
+          "message": "Vehicle Unassigned"
+        }
+      }
+    ],
+    "telemetry": [
+      {
+        "path": "/api/v1/vehicles",
+        "method": "GET",
+        "description": "Returns list of tracked vehicle IDs.",
+        "response": [
+          "EV-HD-001",
+          "EV-HD-002",
+          "EV-HD-003",
+          "EV-HD-004"
+        ]
+      },
+      {
+        "path": "/api/v1/telemetry/live",
+        "method": "GET",
+        "description": "Returns live telemetry for a vehicle.",
+        "query_params": {
+          "vehicle_id": "string (required)"
+        },
+        "response": {
+          "vehicle_id": "EV-HD-001",
+          "voltage": 395.2,
+          "current": 12.4,
+          "temperature": 34.5,
+          "soc": 88.0,
+          "id": 1,
+          "timestamp": "2026-07-15T14:15:00Z"
+        }
+      }
+    ],
+    "ai_prediction": [
+      {
+        "path": "/api/v1/predict/rul",
+        "method": "POST",
+        "description": "Predicts Remaining Useful Life (RUL) of battery.",
+        "request": {
+          "vehicle_id": "EV-001",
+          "timestamp": "2026-07-14T18:30:00Z",
+          "state_of_charge": 82,
+          "state_of_health": 94.2,
+          "voltage": 387.5,
+          "current": 42.3,
+          "temperature": 34.5,
+          "capacity_kwh": 34.1,
+          "internal_resistance": 0.012,
+          "cycle_count": 412
+        },
+        "response": {
+          "success": true,
+          "message": "Prediction Completed",
+          "data": {
+            "vehicle_id": "EV-001",
+            "remaining_cycles": 318,
+            "remaining_days": 214,
+            "confidence": 0.95
+          }
+        }
+      },
+      {
+        "path": "/api/v1/predict/soh",
+        "method": "POST",
+        "description": "Predicts battery State of Health (SoH).",
+        "request": {
+          "vehicle_id": "EV-001",
+          "timestamp": "2026-07-14T18:30:00Z",
+          "voltage": 387.5,
+          "current": 42.3,
+          "temperature": 34.5,
+          "capacity_kwh": 34.1,
+          "internal_resistance": 0.012,
+          "cycle_count": 412
+        },
+        "response": {
+          "success": true,
+          "message": "Prediction Completed",
+          "data": {
+            "vehicle_id": "EV-001",
+            "predicted_soh": 93.8,
+            "confidence": 0.96
+          }
+        }
+      },
+      {
+        "path": "/api/v1/predict/anomaly",
+        "method": "POST",
+        "description": "Detects abnormal battery behavior.",
+        "request": {
+          "vehicle_id": "EV-001",
+          "voltage": 387.5,
+          "current": 42.3,
+          "temperature": 58.2,
+          "state_of_charge": 82,
+          "cycle_count": 412
+        },
+        "response": {
+          "success": true,
+          "message": "Prediction Completed",
+          "data": {
+            "vehicle_id": "EV-001",
+            "anomaly": true,
+            "severity": "HIGH",
+            "confidence": 0.98
+          }
+        }
+      },
+      {
+        "path": "/api/v1/predict/failure",
+        "method": "POST",
+        "description": "Predicts battery failure probability.",
+        "request": {
+          "vehicle_id": "EV-001",
+          "state_of_health": 78,
+          "temperature": 48,
+          "internal_resistance": 0.021,
+          "cycle_count": 812
+        },
+        "response": {
+          "success": true,
+          "message": "Prediction Completed",
+          "data": {
+            "failure_probability": 0.82,
+            "risk_level": "HIGH",
+            "confidence": 0.93
+          }
+        }
+      },
+      {
+        "path": "/api/v1/predict/thermal-risk",
+        "method": "POST",
+        "description": "Evaluates thermal runaway risk.",
+        "request": {
+          "vehicle_id": "EV-001",
+          "temperature": 58,
+          "current": 62,
+          "voltage": 384
+        },
+        "response": {
+          "success": true,
+          "message": "Prediction Completed",
+          "data": {
+            "thermal_risk": "HIGH",
+            "risk_score": 91,
+            "confidence": 0.94
+          }
+        }
+      },
+      {
+        "path": "/api/v1/predict/voltage-risk",
+        "method": "POST",
+        "description": "Evaluates voltage imbalance risk.",
+        "request": {
+          "vehicle_id": "EV-001",
+          "cell_voltage_min": 3.82,
+          "cell_voltage_max": 4.12
+        },
+        "response": {
+          "success": true,
+          "message": "Prediction Completed",
+          "data": {
+            "voltage_risk": "MEDIUM",
+            "imbalance": 0.30,
+            "confidence": 0.91
+          }
+        }
+      },
+      {
+        "path": "/api/v1/predict/models",
+        "method": "GET",
+        "description": "Returns list of models.",
+        "response": {
+          "success": true,
+          "message": "Available Models",
+          "data": [
+            { "model": "RUL", "version": "1.0" },
+            { "model": "SOH", "version": "1.0" },
+            { "model": "ANOMALY", "version": "1.0" }
+          ]
+        }
+      },
+      {
+        "path": "/api/v1/predict/history",
+        "method": "GET",
+        "description": "Returns prediction log history.",
+        "query_params": {
+          "vehicle_id": "string (required)",
+          "prediction_type": "string (optional)",
+          "start_time": "datetime (optional)",
+          "end_time": "datetime (optional)"
+        },
+        "response": {
+          "success": true,
+          "message": "Prediction History",
+          "data": [
+            {
+              "vehicle_id": "EV-001",
+              "prediction_type": "RUL",
+              "prediction": 318,
+              "confidence": 0.95,
+              "generated_at": "2026-07-15T14:10:00Z"
+            }
+          ]
+        }
+      }
+    ],
+    "alerts_and_notifications": [
+      {
+        "path": "/api/v1/alerts",
+        "method": "GET",
+        "description": "Returns list of filtered alerts.",
+        "query_params": {
+          "vehicle_id": "string (optional)",
+          "severity": "string (optional)",
+          "category": "string (optional)",
+          "status": "string (optional)",
+          "source": "string (optional)",
+          "start_time": "datetime (optional)",
+          "end_time": "datetime (optional)",
+          "page": "integer (default=1)",
+          "limit": "integer (default=50)"
+        },
+        "response": {
+          "success": true,
+          "message": "Alert List",
+          "data": [
+            {
+              "alert_id": "ALT-1001",
+              "vehicle_id": "EV-001",
+              "severity": "HIGH",
+              "category": "THERMAL",
+              "title": "High Battery Temperature",
+              "status": "ACTIVE",
+              "created_at": "2026-07-14T18:30:00Z"
+            }
+          ]
+        }
+      },
+      {
+        "path": "/api/v1/alerts",
+        "method": "POST",
+        "description": "Creates a new system alert.",
+        "request": {
+          "vehicle_id": "EV-001",
+          "source": "AI",
+          "category": "THERMAL",
+          "severity": "HIGH",
+          "title": "Thermal Risk Detected",
+          "description": "Thermal runaway probability exceeded threshold."
+        },
+        "response": {
+          "success": true,
+          "message": "Alert Created",
+          "data": {
+            "alert_id": "ALT-1001"
+          }
+        }
+      },
+      {
+        "path": "/api/v1/alerts/{alert_id}",
+        "method": "GET",
+        "description": "Retrieves comprehensive alert details.",
+        "response": {
+          "success": true,
+          "message": "Alert Details",
+          "data": {
+            "alert_id": "ALT-1001",
+            "vehicle_id": "EV-001",
+            "source": "AI",
+            "category": "THERMAL",
+            "severity": "HIGH",
+            "title": "High Battery Temperature",
+            "description": "Battery temperature exceeded threshold.",
+            "status": "ACTIVE",
+            "created_at": "2026-07-14T18:30:00Z"
+          }
+        }
+      },
+      {
+        "path": "/api/v1/alerts/{alert_id}/acknowledge",
+        "method": "PATCH",
+        "description": "Acknowledges an active alert.",
+        "request": {
+          "acknowledged_by": "admin"
+        },
+        "response": {
+          "success": true,
+          "message": "Alert Acknowledged"
+        }
+      },
+      {
+        "path": "/api/v1/alerts/{alert_id}/resolve",
+        "method": "PATCH",
+        "description": "Resolves an alert.",
+        "response": {
+          "success": true,
+          "message": "Alert Resolved"
+        }
+      },
+      {
+        "path": "/api/v1/alerts/summary",
+        "method": "GET",
+        "description": "Retrieves high level alert counts.",
+        "response": {
+          "success": true,
+          "message": "Alert Summary",
+          "data": {
+            "total": 152,
+            "active": 12,
+            "critical": 2,
+            "high": 5,
+            "medium": 3,
+            "low": 2
+          }
+        }
+      },
+      {
+        "path": "/api/v1/notifications",
+        "method": "GET",
+        "description": "Retrieves notification logs.",
+        "response": {
+          "success": true,
+          "message": "Notification History",
+          "data": [
+            {
+              "notification_id": "NOT-1001",
+              "alert_id": "ALT-1001",
+              "recipient": "fleet-operator-1",
+              "channel": "DASHBOARD",
+              "status": "DELIVERED",
+              "delivered_at": "2026-07-14T18:30:05Z"
+            }
+          ]
+        }
+      },
+      {
+        "path": "/api/v1/notifications/{notification_id}/read",
+        "method": "PATCH",
+        "description": "Marks a notification as read.",
+        "response": {
+          "success": true,
+          "message": "Notification Marked as Read"
+        }
+      },
+      {
+        "path": "/api/v1/notifications/unread-count",
+        "method": "GET",
+        "description": "Returns unread notifications count.",
+        "response": {
+          "success": true,
+          "message": "Unread Notifications",
+          "data": {
+            "count": 8
+          }
+        }
+      }
+    ],
+    "predictive_maintenance": [
+      {
+        "path": "/api/v1/maintenance/recommendations",
+        "method": "GET",
+        "description": "Returns AI-generated maintenance suggestions.",
+        "query_params": {
+          "vehicle_id": "string (optional)",
+          "priority": "string (optional)",
+          "status": "string (optional)"
+        },
+        "response": {
+          "success": true,
+          "message": "Maintenance Recommendations",
+          "data": [
+            {
+              "recommendation_id": "REC-1001",
+              "vehicle_id": "EV-001",
+              "recommendation_type": "BATTERY_INSPECTION",
+              "priority": "HIGH",
+              "title": "Inspect Battery Pack",
+              "recommended_date": "2026-07-20",
+              "status": "PENDING"
+            }
+          ]
+        }
+      },
+      {
+        "path": "/api/v1/maintenance/recommendations/{recommendation_id}",
+        "method": "GET",
+        "description": "Returns details of a recommendation.",
+        "response": {
+          "success": true,
+          "message": "Recommendation Details",
+          "data": {
+            "recommendation_id": "REC-1001",
+            "vehicle_id": "EV-001",
+            "source": "AI",
+            "recommendation_type": "BATTERY_INSPECTION",
+            "priority": "HIGH",
+            "title": "Inspect Battery Pack",
+            "description": "Battery degradation exceeds maintenance threshold.",
+            "recommended_date": "2026-07-20",
+            "status": "PENDING"
+          }
+        }
+      },
+      {
+        "path": "/api/v1/maintenance/recommendations/{recommendation_id}",
+        "method": "PATCH",
+        "description": "Updates recommendation status.",
+        "request": {
+          "status": "ACCEPTED"
+        },
+        "response": {
+          "success": true,
+          "message": "Recommendation Updated"
+        }
+      },
+      {
+        "path": "/api/v1/maintenance/work-orders",
+        "method": "POST",
+        "description": "Creates a work order from a recommendation.",
+        "request": {
+          "vehicle_id": "EV-001",
+          "recommendation_id": "REC-1001",
+          "maintenance_type": "BATTERY_INSPECTION",
+          "assigned_to": "Technician A",
+          "scheduled_date": "2026-07-21",
+          "priority": "HIGH"
+        },
+        "response": {
+          "success": true,
+          "message": "Work Order Created",
+          "data": {
+            "work_order_id": "WO-1001"
+          }
+        }
+      },
+      {
+        "path": "/api/v1/maintenance/work-orders",
+        "method": "GET",
+        "description": "Returns active work orders.",
+        "response": {
+          "success": true,
+          "message": "Work Orders",
+          "data": [
+            {
+              "work_order_id": "WO-1001",
+              "vehicle_id": "EV-001",
+              "maintenance_type": "BATTERY_INSPECTION",
+              "scheduled_date": "2026-07-21",
+              "status": "SCHEDULED"
+            }
+          ]
+        }
+      },
+      {
+        "path": "/api/v1/maintenance/work-orders/{work_order_id}",
+        "method": "PATCH",
+        "description": "Updates status of work order.",
+        "request": {
+          "status": "IN_PROGRESS"
+        },
+        "response": {
+          "success": true,
+          "message": "Work Order Updated"
+        }
+      },
+      {
+        "path": "/api/v1/maintenance/history",
+        "method": "POST",
+        "description": "Creates a completed maintenance log.",
+        "request": {
+          "vehicle_id": "EV-001",
+          "work_order_id": "WO-1001",
+          "maintenance_type": "BATTERY_INSPECTION",
+          "performed_by": "Technician A",
+          "performed_at": "2026-07-21T14:30:00Z",
+          "cost": 2500,
+          "remarks": "Battery connections cleaned and tested."
+        },
+        "response": {
+          "success": true,
+          "message": "Maintenance Record Created",
+          "data": {
+            "maintenance_id": "MNT-1001"
+          }
+        }
+      },
+      {
+        "path": "/api/v1/maintenance/summary",
+        "method": "GET",
+        "description": "Returns maintenance summary metrics.",
+        "response": {
+          "success": true,
+          "message": "Maintenance Summary",
+          "data": {
+            "pending_recommendations": 12,
+            "scheduled_work_orders": 8,
+            "in_progress": 3,
+            "completed_this_month": 25
+          }
+        }
+      }
+    ],
+    "supply_chain": [
+      {
+        "path": "/api/v1/supply-chain/suppliers",
+        "method": "GET",
+        "description": "Returns active suppliers and risk ratings.",
+        "response": [
+          { "id": 1, "name": "Salar de Atacama Minerals", "location": "Chile", "risk_score": 24.5, "material_supplied": "Lithium" },
+          { "id": 2, "name": "Tianqi Lithium Refining", "location": "Sichuan, China", "risk_score": 86.2, "material_supplied": "Refined Lithium Hydroxide" }
+        ]
+      },
+      {
+        "path": "/api/v1/supply-chain/risk",
+        "method": "GET",
+        "description": "Returns localized and overall risks.",
+        "response": {
+          "global_risk_index": 54.8,
+          "critical_vulnerability": "High concentration of refining capacity in Sichuan region.",
+          "mitigation_plan": "Diversify sourcing contracts with North American refiners.",
+          "last_updated": "2026-07-10T09:05:00Z"
+        }
+      },
+      {
+        "path": "/api/v1/supply-chain/dependencies",
+        "method": "GET",
+        "description": "Returns relationship nodes and edges from supplier graph database.",
+        "response": {
+          "nodes": [
+            { "id": "node_mine_1", "label": "Mine", "properties": { "name": "Salar de Atacama Mine", "country": "Chile" } },
+            { "id": "node_refiner_1", "label": "Refiner", "properties": { "name": "Tianqi Refining", "country": "China" } }
+          ],
+          "edges": [
+            { "source": "node_mine_1", "target": "node_refiner_1", "type": "SUPPLIES_RAW_MATERIAL" }
+          ]
+        }
+      }
+    ],
+    "sustainability": [
+      {
+        "path": "/api/v1/sustainability/carbon",
+        "method": "GET",
+        "description": "Returns calculated CO2 savings.",
+        "response": {
+          "co2_savings_ytd_tons": 142.6,
+          "diesel_displacement_gallons": 14500,
+          "grid_emission_intensity_kwh": 0.32,
+          "scope_1_direct_displaced_tons": 160.4,
+          "scope_3_grid_indirect_tons": 17.8
+        }
+      },
+      {
+        "path": "/api/v1/sustainability/electrification",
+        "method": "GET",
+        "description": "Returns route electrification suggestions.",
+        "response": {
+          "readiness_score": 84,
+          "total_active_routes": 195,
+          "electrified_routes": 82,
+          "recommendations": [
+            {
+              "route_id": "DEN-BOU-01",
+              "name": "Denver - Boulder Corridor",
+              "readiness_percentage": 94,
+              "reason": "Short length, highly dense public fast chargers, low grade variance."
+            }
+          ]
+        }
+      }
+    ],
+    "dashboard_aggregates": [
+      {
+        "path": "/api/v1/dashboard/overview",
+        "method": "GET",
+        "description": "Returns dashboard main stats.",
+        "response": {
+          "success": true,
+          "message": "Dashboard Overview",
+          "data": {
+            "fleet": { "total_vehicles": 128, "active_vehicles": 119, "offline_vehicles": 9 },
+            "battery": { "average_soc": 81, "average_soh": 94, "critical_batteries": 3 },
+            "alerts": { "active": 12, "critical": 2 },
+            "maintenance": { "scheduled": 8, "pending": 4 },
+            "sustainability": { "carbon_saved": 48215, "average_readiness": 84 },
+            "supply_chain": { "critical_suppliers": 5, "high_risk_suppliers": 2 }
+          }
+        }
+      },
+      {
+        "path": "/api/v1/dashboard/live",
+        "method": "GET",
+        "description": "Returns frequently refreshed dashboard updates.",
+        "response": {
+          "success": true,
+          "message": "Live Dashboard",
+          "data": {
+            "online_vehicles": 118,
+            "active_alerts": 9,
+            "average_soc": 81,
+            "active_charging": 14
+          }
+        }
+      }
+    ]
+  },
+  "websocket_endpoints": {
+    "/api/v1/ws/telemetry": {
+      "description": "Streams live kinematic vehicle data.",
+      "payload": {
+        "vehicle_id": "EV-001",
+        "timestamp": "2026-07-14T18:30:00Z",
+        "soc": 82.0,
+        "voltage": 402.0,
+        "current": 32.0,
+        "temperature": 36.4,
+        "speed": 58.0
+      }
+    },
+    "/api/v1/ws/battery": {
+      "description": "Streams electro-chemical battery status logs.",
+      "payload": {
+        "vehicle_id": "EV-001",
+        "soc": 82.0,
+        "soh": 94.0,
+        "cycle_count": 521,
+        "temperature": 35.8
+      }
+    },
+    "/api/v1/ws/predictions": {
+      "description": "Streams real-time prediction model results.",
+      "payload": {
+        "vehicle_id": "EV-001",
+        "prediction_type": "RUL",
+        "value": 486.0,
+        "unit": "cycles"
+      }
+    },
+    "/api/v1/ws/alerts": {
+      "description": "Streams real-time active system alerts.",
+      "payload": {
+        "alert_id": "ALT-1001",
+        "vehicle_id": "EV-001",
+        "severity": "HIGH",
+        "title": "High Battery Temperature"
+      }
+    },
+    "/api/v1/ws/notifications": {
+      "description": "Streams notification delivery events.",
+      "payload": {
+        "notification_id": "NOT-1001",
+        "alert_id": "ALT-1001",
+        "title": "Thermal Risk Detected",
+        "status": "UNREAD",
+        "created_at": "2026-07-14T18:30:00Z"
+      }
+    },
+    "/api/v1/ws/maintenance": {
+      "description": "Streams live work order status updates.",
+      "payload": {
+        "vehicle_id": "EV-001",
+        "work_order_id": "WO-1001",
+        "status": "SCHEDULED"
+      }
+    },
+    "/api/v1/ws/supply-chain": {
+      "description": "Streams dynamic risk and supplier update events.",
+      "payload": {
+        "supplier_id": "SUP-001",
+        "risk_score": 91.0,
+        "risk_level": "HIGH"
+      }
+    }
+  }
+}

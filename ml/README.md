@@ -95,7 +95,7 @@ python simulator/ev_telemetry_simulator.py --mode mqtt --mqtt-host localhost
 
 ---
 
-## Member 4 Integration Guide
+## Backend Integration Guide
 
 ### What Member 4 needs to set up:
 

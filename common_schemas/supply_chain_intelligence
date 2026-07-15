@@ -1,0 +1,532 @@
+Domain 8 — Supply Chain Intelligence
+Responsibility
+
+Provides graph-based supply chain intelligence using Neo4j. This module manages suppliers, battery manufacturing networks, material traceability, dependency analysis, critical supplier identification, and supply chain risk propagation.
+
+Directory Structure
+backend/app/
+
+models/
+├── supplier.py
+├── material.py
+├── battery_plant.py
+
+schemas/
+├── supply_chain.py
+
+api/v1/endpoints/
+├── suppliers.py
+├── supply_chain.py
+
+services/
+├── supplier_service.py
+├── graph_service.py
+├── risk_service.py
+
+clients/
+├── neo4j_client.py
+Graph Entities
+Supplier
+
+Attributes
+
+supplier_id
+supplier_name
+country
+supplier_type
+risk_score
+status
+Material
+
+Attributes
+
+material_id
+material_name
+category
+source_country
+criticality
+Mine
+
+Attributes
+
+mine_id
+mine_name
+country
+operator
+BatteryPlant
+
+Attributes
+
+plant_id
+plant_name
+location
+manufacturer
+capacity
+BatteryCell
+
+Attributes
+
+cell_id
+cell_name
+manufacturer
+chemistry
+Vehicle
+
+Reference node from Fleet Management
+
+vehicle_id
+vehicle_name
+Graph Relationships
+Mine
+
+│
+
+SUPPLIES
+
+↓
+
+Material
+
+│
+
+USED_BY
+
+↓
+
+Supplier
+
+│
+
+DELIVERS_TO
+
+↓
+
+BatteryPlant
+
+│
+
+PRODUCES
+
+↓
+
+BatteryCell
+
+│
+
+INSTALLED_IN
+
+↓
+
+Vehicle
+API Definitions
+GET /api/v1/suppliers
+Purpose
+
+Returns all registered suppliers.
+
+Query Parameters
+country
+supplier_type
+risk_level
+page
+limit
+Response
+{
+  "success": true,
+  "message": "Supplier List",
+  "data": [
+    {
+      "supplier_id": "SUP-001",
+      "supplier_name": "ABC Lithium Ltd",
+      "country": "Australia",
+      "supplier_type": "Lithium",
+      "risk_score": 28
+    }
+  ]
+}
+GET /api/v1/suppliers/{supplier_id}
+Purpose
+
+Returns supplier details.
+
+Response
+{
+  "success": true,
+  "message": "Supplier Details",
+  "data": {
+    "supplier_id": "SUP-001",
+    "supplier_name": "ABC Lithium Ltd",
+    "country": "Australia",
+    "supplier_type": "Lithium",
+    "risk_score": 28,
+    "status": "ACTIVE"
+  }
+}
+GET /api/v1/supply-chain/dependencies
+Purpose
+
+Returns upstream and downstream dependency graph for a supplier or material.
+
+Query Parameters
+supplier_id
+
+material_id
+
+depth
+Response
+{
+  "success": true,
+  "message": "Dependency Graph",
+  "data": {
+    "nodes": [
+      {
+        "id": "SUP-001",
+        "type": "Supplier",
+        "label": "ABC Lithium"
+      },
+      {
+        "id": "PLANT-01",
+        "type": "BatteryPlant",
+        "label": "Chennai Plant"
+      }
+    ],
+    "edges": [
+      {
+        "source": "SUP-001",
+        "target": "PLANT-01",
+        "relationship": "DELIVERS_TO"
+      }
+    ]
+  }
+}
+GET /api/v1/supply-chain/material-flow
+Purpose
+
+Returns material movement across the supply chain.
+
+Query Parameters
+material_id
+Response
+{
+  "success": true,
+  "message": "Material Flow",
+  "data": {
+    "material": "Lithium",
+    "path": [
+      "Mine",
+      "Supplier",
+      "Battery Plant",
+      "Battery Cell",
+      "Vehicle"
+    ]
+  }
+}
+GET /api/v1/supply-chain/material-traceability
+Purpose
+
+Returns complete traceability path for a material.
+
+Query Parameters
+material_id
+vehicle_id
+Response
+{
+  "success": true,
+  "message": "Material Traceability",
+  "data": {
+    "material": "Lithium",
+    "origin": "Green Mine",
+    "supplier": "ABC Lithium",
+    "battery_plant": "Chennai Plant",
+    "vehicle": "EV-001"
+  }
+}
+GET /api/v1/supply-chain/risk
+Purpose
+
+Returns calculated supply chain risk for suppliers.
+
+Query Parameters
+supplier_id
+Response
+{
+  "success": true,
+  "message": "Risk Analysis",
+  "data": {
+    "supplier_id": "SUP-001",
+    "risk_score": 81,
+    "risk_level": "HIGH",
+    "risk_factors": [
+      "Political Instability",
+      "Shipping Delay"
+    ]
+  }
+}
+GET /api/v1/supply-chain/risk-propagation
+Purpose
+
+Returns impacted downstream entities when a supplier becomes unavailable.
+
+Query Parameters
+supplier_id
+Response
+{
+  "success": true,
+  "message": "Risk Propagation",
+  "data": {
+    "affected_plants": 2,
+    "affected_vehicles": 184,
+    "affected_materials": 4
+  }
+}
+GET /api/v1/supply-chain/critical-suppliers
+Purpose
+
+Returns suppliers ranked by dependency and risk.
+
+Response
+{
+  "success": true,
+  "message": "Critical Suppliers",
+  "data": [
+    {
+      "supplier_id": "SUP-001",
+      "supplier_name": "ABC Lithium",
+      "risk_score": 91,
+      "dependency_score": 94
+    }
+  ]
+}
+GET /api/v1/supply-chain/graph
+Purpose
+
+Returns complete graph visualization data.
+
+Query Parameters
+depth
+
+entity_id
+
+entity_type
+Response
+{
+    "success":true,
+    "message":"Supply Chain Graph",
+    "data":{
+        "nodes":[],
+        "edges":[]
+    }
+}
+GET /api/v1/supply-chain/summary
+Purpose
+
+Returns dashboard summary statistics.
+
+Response
+{
+  "success": true,
+  "message": "Supply Chain Summary",
+  "data": {
+    "suppliers": 124,
+    "critical_suppliers": 8,
+    "materials": 17,
+    "battery_plants": 5
+  }
+}
+Pydantic Schemas
+SupplierResponse
+supplier_id: str
+supplier_name: str
+country: str
+supplier_type: str
+risk_score: float
+status: str
+DependencyGraphResponse
+nodes: list
+edges: list
+MaterialTraceabilityResponse
+material: str
+origin: str
+supplier: str
+battery_plant: str
+vehicle: str
+RiskResponse
+supplier_id: str
+risk_score: float
+risk_level: str
+risk_factors: list[str]
+Enumerations
+SupplierStatus
+ACTIVE
+INACTIVE
+BLOCKED
+RiskLevel
+LOW
+
+MEDIUM
+
+HIGH
+
+CRITICAL
+SupplierType
+Lithium
+
+Nickel
+
+Cobalt
+
+Graphite
+
+Battery Cell
+
+Manufacturer
+
+Logistics
+
+Mining
+RelationshipType
+SUPPLIES
+
+USED_BY
+
+DELIVERS_TO
+
+PRODUCES
+
+INSTALLED_IN
+Neo4j Labels
+Supplier
+
+Material
+
+Mine
+
+BatteryPlant
+
+BatteryCell
+
+Vehicle
+Frontend Team Dependencies
+
+The frontend can immediately integrate the following endpoints:
+
+GET /api/v1/suppliers
+GET /api/v1/suppliers/{supplier_id}
+
+GET /api/v1/supply-chain/dependencies
+GET /api/v1/supply-chain/material-flow
+GET /api/v1/supply-chain/material-traceability
+
+GET /api/v1/supply-chain/risk
+GET /api/v1/supply-chain/risk-propagation
+
+GET /api/v1/supply-chain/critical-suppliers
+GET /api/v1/supply-chain/graph
+
+GET /api/v1/supply-chain/summary
+
+Primary UI screens:
+
+Supplier Dashboard
+Dependency Graph
+Material Flow Visualization
+Critical Supplier Heatmap
+Risk Propagation View
+Material Traceability Explorer
+Supply Chain Summary Cards
+Infrastructure Team Dependencies
+
+Required services:
+
+Neo4j
+
+Required graph labels:
+
+Supplier
+Material
+Mine
+BatteryPlant
+BatteryCell
+Vehicle
+
+Required relationship types:
+
+SUPPLIES
+USED_BY
+DELIVERS_TO
+PRODUCES
+INSTALLED_IN
+
+Environment variables:
+
+NEO4J_URI
+NEO4J_USER
+NEO4J_PASSWORD
+ML Team Dependencies
+
+The ML team is responsible for computing supplier and supply chain risk scores.
+
+Expected payload from ML/Risk Engine:
+
+{
+  "supplier_id": "SUP-001",
+  "risk_score": 81,
+  "risk_level": "HIGH",
+  "risk_factors": [
+    "Political Instability",
+    "Commodity Price Spike",
+    "Shipping Delay"
+  ]
+}
+
+The backend:
+
+Stores or retrieves graph relationships
+Executes Neo4j traversals
+Computes dependency paths
+Serves graph visualization data
+
+The ML/Risk Engine:
+
+Calculates dynamic risk scores
+Evaluates disruption probability
+Generates supplier risk assessments
+Deliverables
+APIs
+GET /api/v1/suppliers
+GET /api/v1/suppliers/{supplier_id}
+
+GET /api/v1/supply-chain/dependencies
+GET /api/v1/supply-chain/material-flow
+GET /api/v1/supply-chain/material-traceability
+
+GET /api/v1/supply-chain/risk
+GET /api/v1/supply-chain/risk-propagation
+
+GET /api/v1/supply-chain/critical-suppliers
+GET /api/v1/supply-chain/graph
+
+GET /api/v1/supply-chain/summary
+Schemas
+SupplierResponse
+DependencyGraphResponse
+MaterialTraceabilityResponse
+RiskResponse
+Neo4j Labels
+Supplier
+Material
+Mine
+BatteryPlant
+BatteryCell
+Vehicle
+Relationship Types
+SUPPLIES
+USED_BY
+DELIVERS_TO
+PRODUCES
+INSTALLED_IN
+Enums
+SupplierStatus
+SupplierType
+RiskLevel
+RelationshipType

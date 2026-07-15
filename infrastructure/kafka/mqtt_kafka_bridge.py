@@ -23,10 +23,10 @@ logger = logging.getLogger("mqtt_kafka_bridge")
 # Configurations from environment variables
 MQTT_HOST = os.getenv("MQTT_HOST", "localhost")
 MQTT_PORT = int(os.getenv("MQTT_PORT", 1883))
-MQTT_TOPIC = os.getenv("MQTT_TOPIC", "ev/battery/#")
+MQTT_TOPIC = os.getenv("MQTT_TOPIC", "ev/#")  # Changed from ev/battery/# to catch all contract topics
 
 KAFKA_SERVERS = os.getenv("KAFKA_BOOTSTRAP_SERVERS", "localhost:9092")
-KAFKA_TOPIC = os.getenv("KAFKA_TOPIC", "ev-telemetry")
+KAFKA_TOPIC = os.getenv("KAFKA_TOPIC", "telemetry.raw")  # Changed from ev-telemetry to telemetry.raw
 
 producer = None
 
@@ -42,13 +42,13 @@ def on_message(client, userdata, msg):
     try:
         payload = msg.payload.decode("utf-8")
         logger.info(f"Received MQTT payload on topic {msg.topic}: {payload}")
-        
+
         # Verify JSON validity
         data = json.loads(payload)
-        
+
         # Enrich data with source MQTT topic
         data["mqtt_source_topic"] = msg.topic
-        
+
         # Forward to Kafka
         if producer:
             future = producer.send(KAFKA_TOPIC, value=data)
@@ -57,13 +57,13 @@ def on_message(client, userdata, msg):
             logger.info(f"Forwarded message to Kafka topic '{record_metadata.topic}' partition [{record_metadata.partition}] offset {record_metadata.offset}")
         else:
             logger.warning("Kafka Producer is offline. Event dropped.")
-            
+
     except Exception as e:
         logger.error(f"Failed to forward message from MQTT to Kafka: {e}")
 
 def main():
     global producer
-    
+
     # 1. Initialize Kafka Producer
     logger.info(f"Initializing Kafka Producer connecting to: {KAFKA_SERVERS}...")
     retries = 5
@@ -81,7 +81,7 @@ def main():
             retries -= 1
             logger.warning(f"Failed to connect to Kafka. Retrying in 5 seconds... (Retries left: {retries}). Error: {e}")
             time.sleep(5)
-            
+
     if not producer:
         logger.error("Could not establish connection to Kafka. Exiting bridge.")
         sys.exit(1)

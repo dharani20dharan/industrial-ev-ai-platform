@@ -7,3 +7,5 @@ pydantic-settings>=2.0.0
 websockets>=11.0
 neo4j>=5.10.0
 python-dotenv>=1.0.0
+aiomqtt>=2.0.0
+aiokafka>=0.8.1

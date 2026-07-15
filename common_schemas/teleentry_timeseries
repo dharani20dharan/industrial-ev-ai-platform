@@ -1,0 +1,478 @@
+backend/app/
+
+models/
+├── telemetry.py
+├── charging_session.py
+├── location_history.py
+
+schemas/
+├── telemetry.py
+├── charging.py
+├── location.py
+
+api/v1/endpoints/
+├── telemetry.py
+├── charging.py
+├── location.py
+
+services/
+├── telemetry_service.py
+├── charging_service.py
+├── location_service.py
+├── websocket_manager.py
+
+===========================================================================
+
+
+Main Entities
+Telemetry : Stores high-frequency IoT sensor readings.
+
+Attributes
+  telemetry_id
+  vehicle_id
+  timestamp
+  state_of_charge
+  state_of_health
+  voltage
+  current
+  power
+  temperature
+  battery_capacity
+  battery_cycles
+  internal_resistance
+  speed
+  odometer
+  charging_status
+  latitude
+  longitude
+
+ChargingSession: Represents a complete charging cycle.
+Attributes
+  session_id
+  vehicle_id
+  charger_id
+  start_time
+  end_time
+  start_soc
+  end_soc
+  energy_consumed
+  charging_duration
+  charging_type
+  average_temperature
+  status
+
+LocationHistory : Stores GPS tracking data.
+Attributes:
+  location_id
+  vehicle_id
+  timestamp
+  latitude
+  longitude
+  speed
+  heading
+  altitude
+
+
+Database Relationships : 
+
+Vehicle
+1
+│
+├───────────────┐
+│               │
+│               │
+▼               ▼
+Telemetry    ChargingSession
+│
+▼
+LocationHistory
+
+
+============================================================================
+
+API Definitions
+Telemetry APIs
+POST /api/v1/telemetry
+Purpose: Stores a new telemetry record (primarily used by MQTT/Kafka consumer).
+Request
+{
+  "vehicle_id": "EV-001",
+  "timestamp": "2026-07-14T18:30:00Z",
+  "state_of_charge": 82,
+  "state_of_health": 94,
+  "voltage": 387.5,
+  "current": 42.3,
+  "power": 16.4,
+  "temperature": 34.6,
+  "battery_capacity": 34.5,
+  "battery_cycles": 412,
+  "internal_resistance": 0.012,
+  "speed": 62,
+  "odometer": 15420,
+  "charging_status": "DISCHARGING",
+  "latitude": 13.0827,
+  "longitude": 80.2707
+}
+Response
+{
+  "success": true,
+  "message": "Telemetry Recorded"
+}
+
+GET /api/v1/telemetry/latest
+Purpose : Returns the latest telemetry for one or more vehicles.
+Query Parameters
+  vehicle_id
+  fleet_id (optional)
+Response
+{
+  "success": true,
+  "message": "Latest Telemetry",
+  "data": {
+    "vehicle_id": "EV-001",
+    "timestamp": "2026-07-14T18:30:00Z",
+    "state_of_charge": 82,
+    "temperature": 34.6,
+    "voltage": 387.5,
+    "current": 42.3,
+    "speed": 62
+  }
+}
+
+GET /api/v1/telemetry/history
+Purpose: Returns historical telemetry data.
+Query Parameters
+  vehicle_id
+  start_time
+  end_time
+  page
+  limit
+Response
+{
+  "success": true,
+  "message": "Telemetry History",
+  "data": [
+    {
+      "timestamp": "2026-07-14T18:20:00Z",
+      "state_of_charge": 84,
+      "temperature": 33.8
+    }
+  ]
+}
+
+
+GET /api/v1/telemetry/timeseries
+Purpose: Returns aggregated telemetry for visualization.
+Query Parameters
+  vehicle_id
+  metric
+  interval
+  start_time
+  end_time
+  Example
+  metric=temperature
+  interval=5m
+Response
+{
+  "success": true,
+  "message": "Time Series Data",
+  "data": [
+    {
+      "timestamp": "2026-07-14T18:00:00Z",
+      "value": 31.4
+    }
+  ]
+}
+
+
+Charging APIs:
+
+POST /api/v1/charging/session
+Purpose: Creates a charging session.
+Request
+{
+  "vehicle_id": "EV-001",
+  "charger_id": "CH-01",
+  "start_soc": 21,
+  "charging_type": "FAST"
+}
+Response
+{
+  "success": true,
+  "message": "Charging Session Started",
+  "data": {
+    "session_id": "CS-1001"
+  }
+}
+
+PATCH /api/v1/charging/session/{session_id}
+Purpose:Updates charging session on completion.
+Request
+{
+  "end_soc": 96,
+  "energy_consumed": 26.2,
+  "charging_duration": 72,
+  "status": "COMPLETED"
+}
+Response
+{
+  "success": true,
+  "message": "Charging Session Updated"
+}
+
+
+GET /api/v1/charging/history
+Purpose:Returns charging history.
+Query Parameters
+vehicle_id
+start_date
+end_date
+Response
+{
+  "success": true,
+  "message": "Charging History",
+  "data": [
+    {
+      "session_id": "CS-1001",
+      "start_soc": 20,
+      "end_soc": 95,
+      "energy_consumed": 26.2
+    }
+  ]
+}
+
+
+Location APIs:
+
+POST /api/v1/location
+Purpose: Stores GPS coordinates.
+Request
+{
+  "vehicle_id": "EV-001",
+  "timestamp": "2026-07-14T18:30:00Z",
+  "latitude": 13.0827,
+  "longitude": 80.2707,
+  "speed": 62
+}
+Response
+{
+  "success": true,
+  "message": "Location Recorded"
+}
+
+
+GET /api/v1/location/latest
+Purpose: Returns latest GPS position.
+Query Parameters
+  vehicle_id
+Response
+{
+  "success": true,
+  "message": "Latest Location",
+  "data": {
+    "latitude": 13.0827,
+    "longitude": 80.2707,
+    "speed": 62
+  }
+}
+
+GET /api/v1/location/history
+Purpose: Returns historical GPS data.
+Query Parameters
+  vehicle_id
+  start_time
+  end_time
+
+
+WebSocket APIs
+WS /api/v1/ws/telemetry
+Purpose: Streams live telemetry to dashboard.
+Event Payload
+{
+  "vehicle_id": "EV-001",
+  "timestamp": "2026-07-14T18:30:00Z",
+  "state_of_charge": 82,
+  "temperature": 34.6,
+  "voltage": 387.5,
+  "current": 42.3,
+  "speed": 62
+}
+
+=========================================================================================
+
+Pydantic Schemas
+
+TelemetryCreate:
+  vehicle_id: str
+  timestamp: datetime
+  state_of_charge: float
+  state_of_health: float
+  voltage: float
+  current: float
+  power: float
+  temperature: float
+  battery_capacity: float
+  battery_cycles: int
+  internal_resistance: float
+  speed: float
+  odometer: float
+  charging_status: str
+  latitude: float
+  longitude: float
+
+ChargingSessionCreate
+  vehicle_id: str
+  charger_id: str
+  start_soc: float
+  charging_type: str
+
+LocationCreate
+  vehicle_id: str
+  timestamp: datetime
+  latitude: float
+  longitude: float
+  speed: float
+
+
+Enumerations:
+
+ChargingStatus
+  CHARGING
+  DISCHARGING
+  IDLE
+  FULLY_CHARGED
+
+ChargingType
+  AC
+  DC_FAST
+  WIRELESS
+  
+MQTT Topics
+  ev/telemetry
+  ev/charging
+  ev/location
+
+Kafka Topics
+  telemetry.raw
+  telemetry.processed
+  charging.events
+  location.events
+
+
+======================================================================
+
+Frontend Team Dependencies
+
+The frontend can integrate the following endpoints immediately:
+
+GET /api/v1/telemetry/latest
+GET /api/v1/telemetry/history
+GET /api/v1/telemetry/timeseries
+
+GET /api/v1/charging/history
+
+GET /api/v1/location/latest
+GET /api/v1/location/history
+
+WS /api/v1/ws/telemetry
+
+Primary UI screens:
+
+Live Fleet Dashboard
+Battery Monitoring
+Charging History
+Vehicle Map
+Historical Charts
+Infrastructure Team Dependencies
+
+=================================================================================
+
+Infrastructure must provide:
+
+TimescaleDB
+MQTT Broker (Mosquitto)
+Kafka Broker
+Kafka Consumers
+Kafka Producers
+
+TimescaleDB Hypertables:
+
+telemetry
+charging_session
+location_history
+
+Kafka Topics:
+
+telemetry.raw
+telemetry.processed
+charging.events
+location.events
+
+MQTT Topics:
+
+ev/telemetry
+ev/charging
+ev/location
+
+====================================================================================
+
+ML Team Dependencies
+
+The ML team consumes historical telemetry and publishes prediction requests using the common vehicle_id.
+
+Required telemetry fields:
+
+vehicle_id
+timestamp
+state_of_charge
+state_of_health
+voltage
+current
+power
+temperature
+battery_capacity
+battery_cycles
+internal_resistance
+charging_status
+
+These fields form the input features for SoH estimation, Remaining Useful Life prediction, anomaly detection, and battery degradation models.
+
+
+====================================================================================================
+Deliverables
+APIs
+POST   /api/v1/telemetry
+GET    /api/v1/telemetry/latest
+GET    /api/v1/telemetry/history
+GET    /api/v1/telemetry/timeseries
+
+POST   /api/v1/charging/session
+PATCH  /api/v1/charging/session/{session_id}
+GET    /api/v1/charging/history
+
+POST   /api/v1/location
+GET    /api/v1/location/latest
+GET    /api/v1/location/history
+
+WS     /api/v1/ws/telemetry
+
+Schemas
+TelemetryCreate
+ChargingSessionCreate
+LocationCreate
+Database Tables
+telemetry
+charging_session
+location_history
+Kafka Topics
+telemetry.raw
+telemetry.processed
+charging.events
+location.events
+MQTT Topics
+ev/telemetry
+ev/charging
+ev/location
+Enums
+ChargingStatus
+ChargingType

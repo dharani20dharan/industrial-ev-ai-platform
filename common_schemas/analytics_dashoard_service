@@ -1,0 +1,380 @@
+Domain 11 — Analytics & Dashboard
+Responsibility
+
+Provides aggregated dashboard APIs that combine data from multiple backend domains into optimized responses for frontend dashboards. This service does not own business data; it aggregates, summarizes, and formats data for visualization.
+
+Directory Structure
+backend/app/
+
+schemas/
+├── dashboard.py
+
+api/v1/endpoints/
+├── dashboard.py
+
+services/
+├── dashboard_service.py
+├── analytics_service.py
+├── trend_service.py
+Data Sources
+Fleet Management
+
+Telemetry & Time-Series
+
+Battery Intelligence
+
+AI Prediction
+
+Alert Service
+
+Maintenance
+
+Supply Chain
+
+Sustainability
+API Definitions
+GET /api/v1/dashboard/overview
+Purpose
+
+Returns the complete dashboard overview with all major KPIs.
+
+Query Parameters
+fleet_id (optional)
+
+vehicle_id (optional)
+Response
+{
+  "success": true,
+  "message": "Dashboard Overview",
+  "data": {
+    "fleet": {
+      "total_vehicles": 128,
+      "active_vehicles": 119,
+      "offline_vehicles": 9
+    },
+    "battery": {
+      "average_soc": 81,
+      "average_soh": 94,
+      "critical_batteries": 3
+    },
+    "alerts": {
+      "active": 12,
+      "critical": 2
+    },
+    "maintenance": {
+      "scheduled": 8,
+      "pending": 4
+    },
+    "sustainability": {
+      "carbon_saved": 48215,
+      "average_readiness": 84
+    },
+    "supply_chain": {
+      "critical_suppliers": 5,
+      "high_risk_suppliers": 2
+    }
+  }
+}
+GET /api/v1/dashboard/fleet-trends
+Purpose
+
+Returns historical fleet statistics.
+
+Query Parameters
+period
+
+start_date
+
+end_date
+Response
+{
+  "success": true,
+  "message": "Fleet Trends",
+  "data": [
+    {
+      "date": "2026-07-01",
+      "active": 112,
+      "offline": 5
+    }
+  ]
+}
+GET /api/v1/dashboard/battery-trends
+Purpose
+
+Returns historical battery KPIs.
+
+Query Parameters
+vehicle_id
+
+period
+Response
+{
+  "success": true,
+  "message": "Battery Trends",
+  "data": [
+    {
+      "timestamp": "2026-07-14T18:00:00Z",
+      "soc": 82,
+      "soh": 94,
+      "temperature": 35.8
+    }
+  ]
+}
+GET /api/v1/dashboard/charging-analytics
+Purpose
+
+Returns charging behavior analytics.
+
+Query Parameters
+vehicle_id
+
+start_date
+
+end_date
+Response
+{
+  "success": true,
+  "message": "Charging Analytics",
+  "data": {
+    "total_sessions": 248,
+    "average_duration": 68,
+    "average_energy": 42,
+    "charging_efficiency": 93
+  }
+}
+GET /api/v1/dashboard/alert-analytics
+Purpose
+
+Returns aggregated alert analytics.
+
+Query Parameters
+period
+Response
+{
+  "success": true,
+  "message": "Alert Analytics",
+  "data": {
+    "total_alerts": 248,
+    "critical": 12,
+    "high": 26,
+    "resolved": 198
+  }
+}
+GET /api/v1/dashboard/maintenance-analytics
+Purpose
+
+Returns maintenance KPIs.
+
+Response
+{
+  "success": true,
+  "message": "Maintenance Analytics",
+  "data": {
+    "scheduled": 18,
+    "completed": 132,
+    "pending": 11,
+    "average_completion_time": 4.6
+  }
+}
+GET /api/v1/dashboard/sustainability-analytics
+Purpose
+
+Returns sustainability KPIs.
+
+Response
+{
+  "success": true,
+  "message": "Sustainability Analytics",
+  "data": {
+    "carbon_saved": 48215,
+    "scope1": 0,
+    "scope3": 1584,
+    "average_readiness": 84
+  }
+}
+GET /api/v1/dashboard/supply-chain-analytics
+Purpose
+
+Returns supply chain KPIs.
+
+Response
+{
+  "success": true,
+  "message": "Supply Chain Analytics",
+  "data": {
+    "suppliers": 128,
+    "critical_suppliers": 5,
+    "high_risk": 2,
+    "materials": 18
+  }
+}
+GET /api/v1/dashboard/live
+Purpose
+
+Returns frequently refreshed live dashboard metrics.
+
+Response
+{
+  "success": true,
+  "message": "Live Dashboard",
+  "data": {
+    "online_vehicles": 118,
+    "active_alerts": 9,
+    "average_soc": 81,
+    "active_charging": 14
+  }
+}
+Pydantic Schemas
+DashboardOverviewResponse
+fleet: dict
+battery: dict
+alerts: dict
+maintenance: dict
+sustainability: dict
+supply_chain: dict
+FleetTrendResponse
+date: date
+active: int
+offline: int
+BatteryTrendResponse
+timestamp: datetime
+soc: float
+soh: float
+temperature: float
+ChargingAnalyticsResponse
+total_sessions: int
+average_duration: float
+average_energy: float
+charging_efficiency: float
+AlertAnalyticsResponse
+total_alerts: int
+critical: int
+high: int
+resolved: int
+SustainabilityAnalyticsResponse
+carbon_saved: float
+scope1: float
+scope3: float
+average_readiness: float
+SupplyChainAnalyticsResponse
+suppliers: int
+critical_suppliers: int
+high_risk: int
+materials: int
+Frontend Team Dependencies
+
+The frontend can integrate the following endpoints:
+
+GET /api/v1/dashboard/overview
+
+GET /api/v1/dashboard/live
+
+GET /api/v1/dashboard/fleet-trends
+
+GET /api/v1/dashboard/battery-trends
+
+GET /api/v1/dashboard/charging-analytics
+
+GET /api/v1/dashboard/alert-analytics
+
+GET /api/v1/dashboard/maintenance-analytics
+
+GET /api/v1/dashboard/sustainability-analytics
+
+GET /api/v1/dashboard/supply-chain-analytics
+
+Primary UI screens:
+
+Executive Dashboard
+Fleet Dashboard
+Battery Dashboard
+Charging Dashboard
+Alert Dashboard
+Maintenance Dashboard
+Sustainability Dashboard
+Supply Chain Dashboard
+Infrastructure Team Dependencies
+
+No dedicated infrastructure is required.
+
+Recommended optimization:
+
+Redis Cache (optional)
+
+Dashboard Response Cache
+
+Materialized Views (optional)
+
+TimescaleDB Continuous Aggregates (optional)
+ML Team Dependencies
+
+The Analytics service consumes outputs from the ML Prediction Service but performs no inference itself.
+
+Consumed data includes:
+
+Remaining Useful Life
+
+State of Health Prediction
+
+Anomaly Detection
+
+Failure Probability
+
+Thermal Risk
+
+Voltage Risk
+
+These values are aggregated into dashboard KPIs and trend visualizations.
+
+Backend Domain Dependencies
+
+This service aggregates data from the following domains:
+
+Fleet Management
+
+Telemetry & Time-Series
+
+Battery Intelligence
+
+AI Prediction Service
+
+Alert & Notification Service
+
+Predictive Maintenance
+
+Supply Chain Intelligence
+
+Sustainability & Carbon Intelligence
+Deliverables
+APIs
+GET /api/v1/dashboard/overview
+
+GET /api/v1/dashboard/live
+
+GET /api/v1/dashboard/fleet-trends
+
+GET /api/v1/dashboard/battery-trends
+
+GET /api/v1/dashboard/charging-analytics
+
+GET /api/v1/dashboard/alert-analytics
+
+GET /api/v1/dashboard/maintenance-analytics
+
+GET /api/v1/dashboard/sustainability-analytics
+
+GET /api/v1/dashboard/supply-chain-analytics
+Schemas
+DashboardOverviewResponse
+
+FleetTrendResponse
+
+BatteryTrendResponse
+
+ChargingAnalyticsResponse
+
+AlertAnalyticsResponse
+
+SustainabilityAnalyticsResponse
+
+SupplyChainAnalyticsResponse

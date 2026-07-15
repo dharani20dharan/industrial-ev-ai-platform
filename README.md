@@ -117,42 +117,72 @@ graph TD
 
 ---
 
-## ⚡ Quick Start & Setup
-
-### 1. Pre-requisites
-Ensure you have the following installed locally:
-*   [Docker & Docker Compose](https://docs.docker.com/get-docker/)
-*   [Node.js (v18+)](https://nodejs.org/)
-*   [Python (v3.10+)](https://www.python.org/)
-
 ### 2. Infrastructure Setup
-Spin up the local containerized databases, brokers, and event pipelines:
+Spin up the local containerized databases, brokers, and event pipelines (including auto-provisioning Kafka topics):
 ```bash
-docker compose up -d
+docker-compose up -d
+
 ```
 
+*(Optional: Verify Kafka topics are created by checking the setup logs: `docker logs -f kafka_setup`)*
+
 ### 3. Backend Setup
+
 ```bash
 cd backend
 python -m venv .venv
 source .venv/bin/activate  # On Windows: .venv\Scripts\activate
 pip install -r requirements.txt
 uvicorn app.main:app --reload
+
 ```
+
 *Access the API documentation at [http://localhost:8000/docs](http://localhost:8000/docs).*
 
 ### 4. Frontend Setup
+
 ```bash
 cd frontend
 npm install
 npm run dev
+
 ```
+
 *Access the control dashboard interface at [http://localhost:3000](http://localhost:3000).*
 
-### 5. Running the Simulator
-Generate synthetic EV telemetry streams to feed the MQTT broker:
+### 5. End-to-End Infrastructure Pipeline Test
+
+To test the flow of data from generation to Kafka consumption, configure a Python virtual environment at the project root:
+
 ```bash
-cd ml
-pip install -r requirements.txt
-python simulator/simulator.py
+# Create and activate the virtual environment
+python3 -m venv venv
+source venv/bin/activate  # On Windows: venv\Scripts\activate
+
+# Install messaging dependencies
+pip install paho-mqtt kafka-python numpy
+
+```
+
+Open **three separate terminal windows**, activate the virtual environment (`source venv/bin/activate`) in each, and run the following services in order:
+
+**Terminal 1: Start the Kafka Consumer (Destination)**
+
+```bash
+python infrastructure/kafka/consumers/telemetry_consumer.py
+
+```
+
+**Terminal 2: Start the MQTT-to-Kafka Bridge (Router)**
+
+```bash
+python infrastructure/kafka/mqtt_kafka_bridge.py
+
+```
+
+**Terminal 3: Start the Data Simulator (Source)**
+
+```bash
+python ml/simulator/simulator.py
+
 ```

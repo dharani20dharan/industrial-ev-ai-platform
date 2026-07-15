@@ -1,0 +1,459 @@
+Domain 7 — Predictive Maintenance
+Responsibility
+
+Provides APIs for maintenance recommendations, work order management, maintenance scheduling, and service history. This module consumes outputs from AI Prediction and Alert services to support preventive and predictive maintenance workflows.
+
+Directory Structure
+backend/app/
+
+models/
+├── maintenance_record.py
+├── recommendation.py
+├── work_order.py
+
+schemas/
+├── maintenance.py
+
+api/v1/endpoints/
+├── maintenance.py
+
+services/
+├── maintenance_service.py
+├── recommendation_service.py
+├── workorder_service.py
+Main Entities
+MaintenanceRecord
+
+Stores completed maintenance activities.
+
+Attributes
+maintenance_id
+vehicle_id
+work_order_id
+maintenance_type
+description
+performed_by
+performed_at
+status
+cost
+odometer
+remarks
+created_at
+updated_at
+Recommendation
+
+Stores AI-generated maintenance recommendations.
+
+Attributes
+recommendation_id
+vehicle_id
+source
+recommendation_type
+priority
+title
+description
+recommended_date
+status
+created_at
+WorkOrder
+
+Represents an approved maintenance task.
+
+Attributes
+work_order_id
+vehicle_id
+recommendation_id
+maintenance_type
+assigned_to
+scheduled_date
+completed_date
+status
+priority
+estimated_duration
+created_at
+updated_at
+Database Relationships
+Vehicle
+
+1
+│
+├───────────────┐
+│               │
+▼               ▼
+Recommendation  WorkOrder
+                    │
+                    ▼
+            MaintenanceRecord
+API Definitions
+GET /api/v1/maintenance/recommendations
+Purpose
+
+Returns maintenance recommendations for one or more vehicles.
+
+Query Parameters
+vehicle_id
+priority
+status
+page
+limit
+Response
+{
+  "success": true,
+  "message": "Maintenance Recommendations",
+  "data": [
+    {
+      "recommendation_id": "REC-1001",
+      "vehicle_id": "EV-001",
+      "recommendation_type": "BATTERY_INSPECTION",
+      "priority": "HIGH",
+      "title": "Inspect Battery Pack",
+      "recommended_date": "2026-07-20",
+      "status": "PENDING"
+    }
+  ]
+}
+GET /api/v1/maintenance/recommendations/{recommendation_id}
+Purpose
+
+Returns detailed recommendation information.
+
+Response
+{
+  "success": true,
+  "message": "Recommendation Details",
+  "data": {
+    "recommendation_id": "REC-1001",
+    "vehicle_id": "EV-001",
+    "source": "AI",
+    "recommendation_type": "BATTERY_INSPECTION",
+    "priority": "HIGH",
+    "title": "Inspect Battery Pack",
+    "description": "Battery degradation exceeds maintenance threshold.",
+    "recommended_date": "2026-07-20",
+    "status": "PENDING"
+  }
+}
+PATCH /api/v1/maintenance/recommendations/{recommendation_id}
+Purpose
+
+Updates recommendation status (e.g., accepted, rejected).
+
+Request
+{
+  "status": "ACCEPTED"
+}
+Response
+{
+  "success": true,
+  "message": "Recommendation Updated"
+}
+POST /api/v1/maintenance/work-orders
+Purpose
+
+Creates a work order from a recommendation.
+
+Request
+{
+  "vehicle_id": "EV-001",
+  "recommendation_id": "REC-1001",
+  "maintenance_type": "BATTERY_INSPECTION",
+  "assigned_to": "Technician A",
+  "scheduled_date": "2026-07-21",
+  "priority": "HIGH"
+}
+Response
+{
+  "success": true,
+  "message": "Work Order Created",
+  "data": {
+    "work_order_id": "WO-1001"
+  }
+}
+GET /api/v1/maintenance/work-orders
+Purpose
+
+Returns work orders with filtering support.
+
+Query Parameters
+vehicle_id
+status
+priority
+assigned_to
+page
+limit
+Response
+{
+  "success": true,
+  "message": "Work Orders",
+  "data": [
+    {
+      "work_order_id": "WO-1001",
+      "vehicle_id": "EV-001",
+      "maintenance_type": "BATTERY_INSPECTION",
+      "scheduled_date": "2026-07-21",
+      "status": "SCHEDULED"
+    }
+  ]
+}
+GET /api/v1/maintenance/work-orders/{work_order_id}
+Purpose
+
+Returns detailed work order information.
+
+PATCH /api/v1/maintenance/work-orders/{work_order_id}
+Purpose
+
+Updates work order status or scheduling.
+
+Request
+{
+  "status": "IN_PROGRESS"
+}
+Response
+{
+  "success": true,
+  "message": "Work Order Updated"
+}
+GET /api/v1/maintenance/history
+Purpose
+
+Returns completed maintenance records.
+
+Query Parameters
+vehicle_id
+maintenance_type
+start_date
+end_date
+page
+limit
+Response
+{
+  "success": true,
+  "message": "Maintenance History",
+  "data": [
+    {
+      "maintenance_id": "MNT-1001",
+      "vehicle_id": "EV-001",
+      "maintenance_type": "BATTERY_INSPECTION",
+      "performed_at": "2026-06-15",
+      "status": "COMPLETED"
+    }
+  ]
+}
+POST /api/v1/maintenance/history
+Purpose
+
+Creates a completed maintenance record.
+
+Request
+{
+  "vehicle_id": "EV-001",
+  "work_order_id": "WO-1001",
+  "maintenance_type": "BATTERY_INSPECTION",
+  "performed_by": "Technician A",
+  "performed_at": "2026-07-21T14:30:00Z",
+  "cost": 2500,
+  "remarks": "Battery connections cleaned and tested."
+}
+Response
+{
+  "success": true,
+  "message": "Maintenance Record Created",
+  "data": {
+    "maintenance_id": "MNT-1001"
+  }
+}
+GET /api/v1/maintenance/upcoming
+Purpose
+
+Returns upcoming scheduled maintenance activities.
+
+Query Parameters
+vehicle_id
+days
+Response
+{
+  "success": true,
+  "message": "Upcoming Maintenance",
+  "data": [
+    {
+      "work_order_id": "WO-1001",
+      "scheduled_date": "2026-07-21",
+      "maintenance_type": "BATTERY_INSPECTION"
+    }
+  ]
+}
+GET /api/v1/maintenance/summary
+Purpose
+
+Returns maintenance statistics for dashboard overview.
+
+Response
+{
+  "success": true,
+  "message": "Maintenance Summary",
+  "data": {
+    "pending_recommendations": 12,
+    "scheduled_work_orders": 8,
+    "in_progress": 3,
+    "completed_this_month": 25
+  }
+}
+Pydantic Schemas
+RecommendationResponse
+recommendation_id: str
+vehicle_id: str
+recommendation_type: str
+priority: str
+title: str
+description: str
+recommended_date: date
+status: str
+WorkOrderCreate
+vehicle_id: str
+recommendation_id: str
+maintenance_type: str
+assigned_to: str
+scheduled_date: date
+priority: str
+WorkOrderResponse
+work_order_id: str
+vehicle_id: str
+maintenance_type: str
+assigned_to: str
+scheduled_date: date
+status: str
+priority: str
+MaintenanceRecordResponse
+maintenance_id: str
+vehicle_id: str
+work_order_id: str
+maintenance_type: str
+performed_by: str
+performed_at: datetime
+status: str
+cost: float
+remarks: str
+Enumerations
+RecommendationType
+BATTERY_INSPECTION
+CELL_BALANCING
+COOLING_SYSTEM
+CHARGING_SYSTEM
+GENERAL_SERVICE
+SOFTWARE_UPDATE
+RecommendationStatus
+PENDING
+ACCEPTED
+REJECTED
+EXPIRED
+WorkOrderStatus
+SCHEDULED
+IN_PROGRESS
+COMPLETED
+CANCELLED
+PriorityLevel
+LOW
+MEDIUM
+HIGH
+CRITICAL
+Frontend Team Dependencies
+
+The frontend can immediately integrate the following endpoints:
+
+GET    /api/v1/maintenance/recommendations
+GET    /api/v1/maintenance/recommendations/{recommendation_id}
+PATCH  /api/v1/maintenance/recommendations/{recommendation_id}
+
+POST   /api/v1/maintenance/work-orders
+GET    /api/v1/maintenance/work-orders
+GET    /api/v1/maintenance/work-orders/{work_order_id}
+PATCH  /api/v1/maintenance/work-orders/{work_order_id}
+
+GET    /api/v1/maintenance/history
+POST   /api/v1/maintenance/history
+
+GET    /api/v1/maintenance/upcoming
+GET    /api/v1/maintenance/summary
+
+Primary UI screens:
+
+Maintenance Dashboard
+Recommendations List
+Work Order Management
+Maintenance History
+Upcoming Maintenance Calendar
+Maintenance Summary Cards
+Infrastructure Team Dependencies
+
+Required database tables:
+
+recommendation
+work_order
+maintenance_record
+
+Optional integrations:
+
+Kafka
+MQTT
+
+Incoming event sources:
+
+AI Prediction Service
+Alert Service
+Telemetry Service
+ML Team Dependencies
+
+The ML team produces maintenance recommendations but does not manage scheduling.
+
+Expected recommendation payload:
+
+{
+  "vehicle_id": "EV-001",
+  "recommendation_type": "BATTERY_INSPECTION",
+  "priority": "HIGH",
+  "title": "Inspect Battery Pack",
+  "description": "Battery degradation exceeds threshold.",
+  "recommended_date": "2026-07-20"
+}
+
+The backend:
+
+Stores recommendations
+Creates work orders
+Tracks maintenance lifecycle
+Maintains service history
+
+The ML service:
+
+Generates recommendation content only
+Deliverables
+APIs
+GET    /api/v1/maintenance/recommendations
+GET    /api/v1/maintenance/recommendations/{recommendation_id}
+PATCH  /api/v1/maintenance/recommendations/{recommendation_id}
+
+POST   /api/v1/maintenance/work-orders
+GET    /api/v1/maintenance/work-orders
+GET    /api/v1/maintenance/work-orders/{work_order_id}
+PATCH  /api/v1/maintenance/work-orders/{work_order_id}
+
+GET    /api/v1/maintenance/history
+POST   /api/v1/maintenance/history
+
+GET    /api/v1/maintenance/upcoming
+GET    /api/v1/maintenance/summary
+Schemas
+RecommendationResponse
+WorkOrderCreate
+WorkOrderResponse
+MaintenanceRecordResponse
+Database Tables
+recommendation
+work_order
+maintenance_record
+Enums
+RecommendationType
+RecommendationStatus
+WorkOrderStatus
+PriorityLevel

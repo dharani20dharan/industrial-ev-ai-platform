@@ -1,0 +1,395 @@
+Overall Backend Service Summary
+Domain	Responsibility	Primary Role
+1. Core Platform	Platform foundation	Common infrastructure, configuration, health checks, authentication, logging, dependency injection, standardized responses
+2. Fleet Management	Fleet inventory	Vehicle registration, fleet metadata, assignments, vehicle lifecycle management
+3. Telemetry & Time-Series	IoT telemetry	Stores and retrieves all incoming telemetry, charging sessions, GPS, historical time-series data using TimescaleDB
+4. Battery Intelligence	Battery monitoring	Real-time battery metrics (SoC, SoH, voltage, current, temperature, cycle count) without AI predictions
+5. AI Prediction Service	ML inference	Remaining Useful Life (RUL), SoH prediction, anomaly detection, thermal risk, voltage risk, failure probability
+6. Alert & Notification Service	Event management	Centralized alert generation, acknowledgement, history, notification routing from all platform services
+7. Predictive Maintenance	Maintenance intelligence	Maintenance recommendations, work orders, service history, maintenance scheduling
+8. Supply Chain Intelligence	Graph analytics	Neo4j-based supplier graph, dependency analysis, risk propagation, material traceability
+9. Sustainability & Carbon Intelligence	ESG analytics	Carbon calculations, diesel vs EV comparison, electrification readiness, procurement recommendations
+10. Real-Time Streaming	Event pipeline	MQTT ingestion, Kafka messaging, WebSocket broadcasting, event routing between services
+11. Analytics & Dashboard	Dashboard aggregation	Aggregates KPIs from all services into optimized dashboard APIs for the frontend
+High-Level System Architecture
+                       INDUSTRIAL EV AI PLATFORM
+
+                       ┌──────────────────────────────┐
+                       │      React Dashboard         │
+                       │                              │
+                       │ Fleet Dashboard              │
+                       │ Battery Dashboard            │
+                       │ AI Dashboard                 │
+                       │ Alerts Dashboard             │
+                       │ Supply Chain Dashboard       │
+                       │ Sustainability Dashboard     │
+                       └──────────────┬───────────────┘
+                                      │
+                     REST APIs + WebSockets
+                                      │
+──────────────────────────────────────┼──────────────────────────────────────
+
+                    FastAPI Backend (API Gateway Layer)
+
+                                      │
+      ┌───────────────────────────────┼───────────────────────────────┐
+      │                               │                               │
+ Core Platform                 Dashboard APIs                 WebSocket APIs
+ Authentication                Aggregated KPIs                Live Updates
+ Health                        Analytics                      Event Streaming
+ Logging                       Reports                        Notifications
+
+──────────────────────────────────────────────────────────────────────────────
+
+                     BUSINESS SERVICE LAYER
+
+┌───────────────┐
+│Fleet Service  │
+└──────┬────────┘
+       │
+       ▼
+
+┌────────────────────┐
+│Telemetry Service   │◄──────────── MQTT Consumer
+└────────┬───────────┘
+         │
+         ▼
+┌────────────────────┐
+│Battery Service     │
+└────────┬───────────┘
+         │
+         ▼
+┌────────────────────┐
+│AI Prediction       │
+└────────┬───────────┘
+         │
+         ▼
+┌────────────────────┐
+│Alert Service       │
+└────────┬───────────┘
+         │
+         ▼
+┌────────────────────┐
+│Maintenance Service │
+└────────┬───────────┘
+         │
+         ▼
+┌────────────────────┐
+│Supply Chain Service│
+└────────┬───────────┘
+         │
+         ▼
+┌────────────────────┐
+│Sustainability      │
+└────────┬───────────┘
+         │
+         ▼
+┌────────────────────┐
+│Analytics Service   │
+└────────────────────┘
+
+Detailed End-to-End Architecture Flow
+                                  IoT Devices
+                         (Vehicle / Simulator / Sensors)
+                                        │
+                         MQTT (ev/telemetry, battery, GPS)
+                                        │
+                                        ▼
+                             ┌───────────────────┐
+                             │ Mosquitto Broker  │
+                             └─────────┬─────────┘
+                                       │
+                                       ▼
+                             MQTT Consumer Service
+                                       │
+                                       ▼
+                            Kafka Producer publishes
+                                       │
+                                       ▼
+══════════════════════════════════════════════════════════════
+                    Kafka Event Bus
+══════════════════════════════════════════════════════════════
+
+Topics
+
+telemetry.raw
+telemetry.processed
+predictions
+alerts
+maintenance
+supplychain
+
+══════════════════════════════════════════════════════════════
+
+               Kafka Consumers subscribe to events
+
+               telemetry.raw
+                      │
+                      ▼
+              Telemetry Processing
+                      │
+                      ▼
+             telemetry.processed topic
+                      │
+      ┌───────────────┼────────────────────┐
+      │               │                    │
+      ▼               ▼                    ▼
+
+Telemetry DB     Battery Service      AI Prediction
+(TimescaleDB)    (Monitoring)         (ML Inference)
+
+      │               │                    │
+      │               │                    ▼
+      │               │            predictions topic
+      │               │                    │
+      │               │                    ▼
+      │               │              Alert Service
+      │               │                    │
+      │               │                    ▼
+      │               │            alerts topic
+      │               │                    │
+      │               │                    ▼
+      │               │          Maintenance Service
+      │               │                    │
+      │               │                    ▼
+      │               │         maintenance topic
+      │               │
+      │               ▼
+      │      Battery Health APIs
+      │
+      ▼
+
+Historical Queries
+Time-Series Analytics
+Charging Analytics
+
+──────────────────────────────────────────────────────────────
+
+Fleet Service
+      │
+      ▼
+
+Vehicle Metadata
+
+Fleet Assignment
+
+Vehicle Status
+
+──────────────────────────────────────────────────────────────
+
+Supply Chain Service
+      │
+      
+Neo4j Database
+
+Supplier Graph
+
+Material Flow
+
+Risk Propagation
+
+Critical Dependency Analysis
+
+──────────────────────────────────────────────────────────────
+
+Sustainability Service
+      │
+      ▼
+
+Carbon Calculation
+
+Scope 1 / Scope 3
+
+Diesel vs EV
+
+Readiness Score
+
+Procurement Recommendation
+
+──────────────────────────────────────────────────────────────
+
+Analytics Service
+
+Collects information from
+
+Fleet
+Telemetry
+Battery
+AI
+Alerts
+Maintenance
+Supply Chain
+Sustainability
+
+↓
+
+Produces
+
+/dashboard/overview
+
+/dashboard/fleet-trends
+
+/dashboard/battery-trends
+
+/dashboard/charging-analytics
+
+/dashboard/alert-analytics
+
+/dashboard/supply-chain-analytics
+
+/dashboard/sustainability-analytics
+
+──────────────────────────────────────────────────────────────
+
+                 FastAPI REST API Layer
+
+/api/v1/fleet
+
+/api/v1/telemetry
+
+/api/v1/battery
+
+/api/v1/predict
+
+/api/v1/alerts
+
+/api/v1/maintenance
+
+/api/v1/supply-chain
+
+/api/v1/sustainability
+
+/api/v1/dashboard
+
+──────────────────────────────────────────────────────────────
+
+              WebSocket Manager
+
+/ws/telemetry
+
+/ws/battery
+
+/ws/predictions
+
+/ws/alerts
+
+/ws/maintenance
+
+/ws/supply-chain
+
+──────────────────────────────────────────────────────────────
+
+                 React Dashboard
+
+Executive Dashboard
+
+Fleet Dashboard
+
+Battery Dashboard
+
+Telemetry Dashboard
+
+Charging Dashboard
+
+Maintenance Dashboard
+
+Supply Chain Dashboard
+
+Carbon Dashboard
+
+AI Prediction Dashboard
+
+Live Notifications
+
+──────────────────────────────────────────────
+
+Supporting Infrastructure
+
+PostgreSQL
+│
+├── Fleet
+├── Alerts
+├── Maintenance
+├── Carbon Reports
+└── User Data
+
+TimescaleDB
+│
+├── Telemetry
+├── Charging Sessions
+└── GPS History
+
+Neo4j
+│
+├── Suppliers
+├── Plants
+├── Materials
+└── Dependencies
+
+Kafka
+│
+├── Event Streaming
+├── Event Routing
+└── Service Communication
+
+MQTT
+│
+└── IoT Device Communication
+
+ML Service
+│
+├── RUL Prediction
+├── SoH Prediction
+├── Thermal Risk
+├── Voltage Risk
+└── Anomaly Detection
+Overall Data Flow
+IoT Devices
+      │
+      ▼
+MQTT
+      │
+      ▼
+Kafka
+      │
+      ▼
+Telemetry Processing
+      │
+      ├────────► TimescaleDB
+      │
+      ├────────► Battery Monitoring
+      │
+      ├────────► AI Prediction
+      │
+      ├────────► Alert Generation
+      │
+      ├────────► Maintenance Recommendation
+      │
+      ├────────► Dashboard Aggregation
+      │
+      └────────► WebSocket Broadcast
+
+Fleet Data ─────────────┐
+Supply Chain ───────────┤
+Carbon Intelligence ────┤
+Maintenance ────────────┤
+Alerts ─────────────────┤
+AI Predictions ─────────┤
+Telemetry ──────────────┘
+            │
+            ▼
+ Analytics & Dashboard Service
+            │
+            ▼
+     React Frontend
+Overall Layered Architecture
+
+The complete platform can be viewed as seven logical layers, each with a single responsibility:
+
+Device Layer – EVs, sensors, simulators publishing telemetry over MQTT.
+Streaming Layer – MQTT, Kafka, and WebSockets providing real-time event transport.
+Core Platform Layer – Common infrastructure (health, configuration, authentication, logging, dependency injection).
+Business Services Layer – Fleet, Telemetry, Battery, AI, Alerts, Maintenance, Supply Chain, Sustainability.
+Data Layer – PostgreSQL (relational), TimescaleDB (time-series), Neo4j (graph).
+Analytics Layer – Dashboard aggregation and KPI computation across all domains.
+Presentation Layer – React dashboard consuming REST APIs for historical/aggregated data and WebSockets for live updates.

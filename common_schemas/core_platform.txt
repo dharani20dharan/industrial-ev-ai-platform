@@ -1,0 +1,427 @@
+backend/app/
+
+core/
+├── config.py
+├── database.py
+├── dependencies.py
+├── exceptions.py
+├── logging.py
+├── response.py
+├── security.py
+
+schemas/
+├── common.py
+├── health.py
+├── config.py
+
+api/v1/endpoints/
+├── health.py
+├── system.py
+├── version.py
+
+services/
+├── health_service.py
+├── system_service.py
+
+
+API versioning standard
+/api/v1/
+
+
+Standard Response Contract:
+
+Success Response:
+{
+  "success": true,
+  "message": "Operation completed successfully",
+  "data": {},
+  "metadata": {
+    "timestamp": "2026-07-14T18:30:00Z"
+  }
+}
+
+Error Response:
+{
+  "success": false,
+  "message": "Validation Error",
+  "error": {
+    "code": "VALIDATION_ERROR",
+    "details": []
+  },
+  "metadata": {
+    "timestamp": "2026-07-14T18:30:00Z"
+  }
+}
+
+Common Schemas:
+
+class APIResponse(BaseModel):
+    success: bool
+    message: str
+    data: Optional[Any]
+    metadata: dict
+
+class ErrorResponse(BaseModel):
+    success: bool
+    message: str
+    error: dict
+    metadata: dict
+
+class Metadata(BaseModel):
+    timestamp: datetime
+
+==============================================================================================
+API Definitions:
+
+Health APIs:
+
+
+GET /api/v1/health  #Basic application health check.
+
+Request
+No payload.
+
+Response
+{
+  "success": true,
+  "message": "Service Healthy",
+  "data": {
+    "status": "UP"
+  }
+}
+
+GET /api/v1/health/db
+Purpose: Verify PostgreSQL/TimescaleDB connectivity.
+
+Request
+No payload.
+
+Response
+{
+  "success": true,
+  "message": "Database Healthy",
+  "data": {
+    "status": "UP",
+    "database": "postgresql"
+  }
+}
+
+
+GET /api/v1/health/kafka
+Purpose : Verify Kafka broker availability.
+
+Request
+No payload.
+
+Response
+{
+  "success": true,
+  "message": "Kafka Healthy",
+  "data": {
+    "status": "UP",
+    "broker": "kafka:9092"
+  }
+}
+
+
+GET /api/v1/health/mqtt
+Purpose: Verify MQTT broker connectivity.
+
+Request
+No payload.
+
+Response
+{
+  "success": true,
+  "message": "MQTT Healthy",
+  "data": {
+    "status": "UP",
+    "broker": "mosquitto:1883"
+  }
+}
+
+
+GET /api/v1/health/neo4j
+Purpose : Verify Neo4j availability.
+
+Request
+No payload.
+
+Response
+{
+  "success": true,
+  "message": "Neo4j Healthy",
+  "data": {
+    "status": "UP",
+    "database": "neo4j"
+  }
+}
+
+
+GET /api/v1/health/ml
+Purpose: Verify ML inference service availability.
+
+Request
+No payload.
+
+Response
+{
+  "success": true,
+  "message": "ML Service Healthy",
+  "data": {
+    "status": "UP",
+    "service": "prediction-engine"
+  }
+}
+
+
+System Status APIs
+GET /api/v1/system/status
+Purpose : Aggregated status of all connected services.
+
+Request
+No payload.
+
+Response
+{
+  "success": true,
+  "message": "System Status",
+  "data": {
+    "backend": "UP",
+    "database": "UP",
+    "kafka": "UP",
+    "mqtt": "UP",
+    "neo4j": "UP",
+    "ml_service": "UP"
+  }
+}
+
+
+GET /api/v1/system/info
+Purpose : Expose platform information.
+
+Request
+No payload.
+
+Response
+{
+  "success": true,
+  "message": "System Information",
+  "data": {
+    "project": "Industrial EV AI Platform",
+    "environment": "development",
+    "uptime": 86400,
+    "timezone": "UTC"
+  }
+}
+
+
+Version APIs
+GET /api/v1/version
+Purpose : Expose API version.
+
+Request
+No payload.
+
+Response
+{
+  "success": true,
+  "message": "Version Information",
+  "data": {
+    "api_version": "v1",
+    "build_version": "1.0.0",
+    "release_date": "2026-07-14"
+  }
+}
+
+
+Configuration APIs
+GET /api/v1/config/public
+Purpose: Expose non-sensitive frontend configuration.
+
+Request
+No payload.
+
+Response
+{
+  "success": true,
+  "message": "Public Configuration",
+  "data": {
+    "websocket_enabled": true,
+    "telemetry_refresh_interval": 1,
+    "dashboard_refresh_interval": 30
+  }
+}
+
+
+Authentication Placeholder APIs
+POST /api/v1/auth/login
+Purpose : Placeholder endpoint for future authentication.
+Request
+{
+  "username": "admin",
+  "password": "password"
+}
+Response
+{
+  "success": true,
+  "message": "Login Successful",
+  "data": {
+    "access_token": "jwt-token",
+    "token_type": "bearer"
+  }
+}
+
+
+
+GET /api/v1/auth/me
+Purpose : Returns current user information.
+
+Request
+Authorization Header
+Bearer <token>
+
+Response
+{
+  "success": true,
+  "message": "Current User",
+  "data": {
+    "id": 1,
+    "username": "admin",
+    "role": "administrator"
+  }
+}
+
+
+GET /health/all
+{
+    "overall_status":"HEALTHY",
+    "services":[
+        ...
+    ]
+}
+
+
+GET  /api/v1/health
+GET  /api/v1/health/db
+GET  /api/v1/health/kafka
+GET  /api/v1/health/mqtt
+GET  /api/v1/health/neo4j
+GET  /api/v1/health/ml
+
+GET  /api/v1/system/status
+GET  /api/v1/system/info
+
+GET  /api/v1/version
+
+GET  /api/v1/config/public
+
+POST /api/v1/auth/login
+GET  /api/v1/auth/me
+
+==============================================================================================
+Error Codes::
+
+ServiceStatus
+  UP
+  DOWN
+  DEGRADED
+  UNKNOWN
+
+Generic:
+  INTERNAL_SERVER_ERROR
+  BAD_REQUEST
+  NOT_FOUND
+  UNAUTHORIZED
+  FORBIDDEN
+  VALIDATION_ERROR
+  SERVICE_UNAVAILABLE
+
+Infrastructure:
+  DATABASE_UNAVAILABLE
+  KAFKA_UNAVAILABLE
+  MQTT_UNAVAILABLE
+  NEO4J_UNAVAILABLE
+  ML_SERVICE_UNAVAILABLE
+
+
+====================================================================================
+
+HTTP Status Mapping
+HTTP Code	Usage
+200	Success
+201	Created
+400	Validation Failure
+401	Unauthorized
+403	Forbidden
+404	Resource Not Found
+409	Conflict
+422	Schema Validation
+500	Internal Error
+503	Dependency Unavailable
+
+
+=============================================================================================
+
+Environment Configuration Schema
+.env Variables
+
+APP_NAME=Industrial EV AI Platform
+HOST=
+PORT=
+SECRET_KEY=
+ACCESS_TOKEN_EXPIRE_MINUTES=
+LOG_LEVEL=
+ALLOWED_ORIGINS=
+FRONTEND_URL=
+ENVIRONMENT=development
+API_VERSION=v1
+DEBUG=true
+POSTGRES_HOST=
+POSTGRES_PORT=
+POSTGRES_DB=
+POSTGRES_USER=
+POSTGRES_PASSWORD=
+KAFKA_BOOTSTRAP_SERVERS=
+MQTT_BROKER=
+MQTT_PORT=
+NEO4J_URI=
+NEO4J_USER=
+NEO4J_PASSWORD=
+ML_SERVICE_URL=
+
+
+
+===========================================================================================
+
+Logging Standard
+Log Format
+{
+  "timestamp": "",
+  "level": "INFO",
+  "service": "backend",
+  "module": "telemetry",
+  "message": ""
+}
+
+Dependency Injection Contracts
+Database Dependency
+  get_db()
+  Provides
+  Session
+
+Kafka Dependency
+  get_kafka_producer()
+    Provides
+    KafkaProducer
+
+Neo4j Dependency
+  get_neo4j_driver()
+    Provides
+    Neo4j Driver
+
+MQTT Dependency
+  get_mqtt_client()
+    Provides
+    MQTT Client
+

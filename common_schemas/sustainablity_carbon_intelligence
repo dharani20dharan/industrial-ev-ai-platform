@@ -1,0 +1,367 @@
+Domain 9 — Sustainability & Carbon Intelligence
+Responsibility
+
+Provides sustainability analytics, carbon emission calculations, fleet electrification readiness assessments, diesel vs EV comparisons, procurement recommendations, and enterprise ESG metrics.
+
+Directory Structure
+backend/app/
+
+models/
+├── carbon_report.py
+├── readiness_assessment.py
+
+schemas/
+├── sustainability.py
+
+api/v1/endpoints/
+├── sustainability.py
+
+services/
+├── carbon_service.py
+├── readiness_service.py
+├── procurement_service.py
+Main Entities
+CarbonReport
+
+Stores calculated carbon emission reports.
+
+Attributes
+report_id
+fleet_id
+vehicle_id
+report_period
+distance_travelled
+energy_consumed
+diesel_emission
+ev_emission
+scope1_emission
+scope3_emission
+carbon_saved
+generated_at
+ReadinessAssessment
+
+Stores electrification readiness analysis.
+
+Attributes
+assessment_id
+fleet_id
+vehicle_id
+route_distance
+payload
+charging_availability
+dwell_time
+readiness_score
+recommendation
+generated_at
+API Definitions
+POST /api/v1/sustainability/carbon/calculate
+Purpose
+
+Calculates carbon emissions for a vehicle or fleet over a specified period.
+
+Request
+{
+  "vehicle_id": "EV-001",
+  "start_date": "2026-07-01",
+  "end_date": "2026-07-31"
+}
+Response
+{
+  "success": true,
+  "message": "Carbon Report Generated",
+  "data": {
+    "report_id": "CAR-1001",
+    "distance_travelled": 2845,
+    "energy_consumed_kwh": 652,
+    "scope1_emission": 0,
+    "scope3_emission": 184.6,
+    "carbon_saved": 712.4
+  }
+}
+GET /api/v1/sustainability/carbon/report/{report_id}
+Purpose
+
+Returns a previously generated carbon report.
+
+Response
+{
+  "success": true,
+  "message": "Carbon Report",
+  "data": {
+    "report_id": "CAR-1001",
+    "vehicle_id": "EV-001",
+    "scope1_emission": 0,
+    "scope3_emission": 184.6,
+    "carbon_saved": 712.4
+  }
+}
+POST /api/v1/sustainability/diesel-vs-ev
+Purpose
+
+Compares emissions between diesel and electric operation.
+
+Request
+{
+  "distance_km": 350,
+  "payload_kg": 1200,
+  "diesel_efficiency": 12,
+  "ev_efficiency": 0.21
+}
+Response
+{
+  "success": true,
+  "message": "Comparison Generated",
+  "data": {
+    "diesel_emission": 92.4,
+    "ev_emission": 23.1,
+    "carbon_saved": 69.3,
+    "reduction_percentage": 75
+  }
+}
+POST /api/v1/sustainability/readiness-assessment
+Purpose
+
+Evaluates fleet electrification readiness.
+
+Request
+{
+  "route_distance": 220,
+  "payload": 1500,
+  "charging_availability": true,
+  "dwell_time": 6
+}
+Response
+{
+  "success": true,
+  "message": "Assessment Completed",
+  "data": {
+    "assessment_id": "READ-1001",
+    "readiness_score": 86,
+    "recommendation": "Suitable for EV migration"
+  }
+}
+GET /api/v1/sustainability/readiness/{assessment_id}
+Purpose
+
+Returns readiness assessment details.
+
+Response
+{
+  "success": true,
+  "message": "Readiness Assessment",
+  "data": {
+    "assessment_id": "READ-1001",
+    "readiness_score": 86,
+    "recommendation": "Suitable for EV migration"
+  }
+}
+POST /api/v1/sustainability/procurement-recommendation
+Purpose
+
+Generates procurement recommendations for EV adoption.
+
+Request
+{
+  "fleet_size": 120,
+  "daily_distance": 180,
+  "charging_available": true
+}
+Response
+{
+  "success": true,
+  "message": "Procurement Recommendation",
+  "data": {
+    "recommended_vehicle_type": "Medium Duty EV",
+    "recommended_quantity": 40,
+    "estimated_carbon_saving": 15400
+  }
+}
+GET /api/v1/sustainability/summary
+Purpose
+
+Returns dashboard sustainability KPIs.
+
+Response
+{
+  "success": true,
+  "message": "Sustainability Summary",
+  "data": {
+    "total_carbon_saved": 48520,
+    "scope1_emission": 0,
+    "scope3_emission": 1542,
+    "vehicles_assessed": 132,
+    "average_readiness_score": 82
+  }
+}
+GET /api/v1/sustainability/history
+Purpose
+
+Returns historical sustainability reports.
+
+Query Parameters
+vehicle_id
+fleet_id
+start_date
+end_date
+page
+limit
+Pydantic Schemas
+CarbonCalculationRequest
+vehicle_id: str
+start_date: date
+end_date: date
+CarbonReportResponse
+report_id: str
+vehicle_id: str
+distance_travelled: float
+energy_consumed_kwh: float
+scope1_emission: float
+scope3_emission: float
+carbon_saved: float
+DieselVsEVRequest
+distance_km: float
+payload_kg: float
+diesel_efficiency: float
+ev_efficiency: float
+ReadinessAssessmentRequest
+route_distance: float
+payload: float
+charging_availability: bool
+dwell_time: float
+ReadinessAssessmentResponse
+assessment_id: str
+readiness_score: float
+recommendation: str
+ProcurementRecommendationResponse
+recommended_vehicle_type: str
+recommended_quantity: int
+estimated_carbon_saving: float
+Enumerations
+ReportPeriod
+DAILY
+WEEKLY
+MONTHLY
+YEARLY
+CUSTOM
+RecommendationLevel
+LOW
+
+MEDIUM
+
+HIGH
+ReadinessLevel
+NOT_READY
+
+PARTIALLY_READY
+
+READY
+
+HIGHLY_READY
+Frontend Team Dependencies
+
+The frontend can immediately integrate the following endpoints:
+
+POST /api/v1/sustainability/carbon/calculate
+GET  /api/v1/sustainability/carbon/report/{report_id}
+
+POST /api/v1/sustainability/diesel-vs-ev
+
+POST /api/v1/sustainability/readiness-assessment
+GET  /api/v1/sustainability/readiness/{assessment_id}
+
+POST /api/v1/sustainability/procurement-recommendation
+
+GET  /api/v1/sustainability/summary
+GET  /api/v1/sustainability/history
+
+Primary UI screens:
+
+Carbon Dashboard
+Diesel vs EV Comparison
+Electrification Readiness Dashboard
+Procurement Recommendation Panel
+ESG Metrics Dashboard
+Sustainability Report History
+Infrastructure Team Dependencies
+
+Required database tables:
+
+carbon_report
+
+readiness_assessment
+
+Primary data sources:
+
+Fleet Management
+
+Telemetry & Time-Series
+
+Charging Sessions
+
+Battery Intelligence
+
+Supply Chain Intelligence
+ML Team Dependencies
+
+The ML/Analytics team is responsible for generating readiness scores and procurement recommendations.
+
+Expected readiness payload:
+
+{
+  "route_distance": 220,
+  "payload": 1500,
+  "charging_availability": true,
+  "dwell_time": 6,
+  "readiness_score": 86,
+  "recommendation": "Suitable for EV migration"
+}
+
+Expected procurement payload:
+
+{
+  "recommended_vehicle_type": "Medium Duty EV",
+  "recommended_quantity": 40,
+  "estimated_carbon_saving": 15400
+}
+
+The backend:
+
+Aggregates fleet and telemetry data
+Exposes sustainability APIs
+Stores reports and assessments
+Returns analytics for dashboards
+
+The ML/Analytics engine:
+
+Calculates readiness scores
+Estimates procurement recommendations
+Provides optimization outputs
+Deliverables
+APIs
+POST /api/v1/sustainability/carbon/calculate
+GET  /api/v1/sustainability/carbon/report/{report_id}
+
+POST /api/v1/sustainability/diesel-vs-ev
+
+POST /api/v1/sustainability/readiness-assessment
+GET  /api/v1/sustainability/readiness/{assessment_id}
+
+POST /api/v1/sustainability/procurement-recommendation
+
+GET  /api/v1/sustainability/summary
+GET  /api/v1/sustainability/history
+Schemas
+CarbonCalculationRequest
+CarbonReportResponse
+DieselVsEVRequest
+ReadinessAssessmentRequest
+ReadinessAssessmentResponse
+ProcurementRecommendationResponse
+Database Tables
+carbon_report
+
+readiness_assessment
+Enums
+ReportPeriod
+RecommendationLevel
+ReadinessLevel

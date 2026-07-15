@@ -1,0 +1,462 @@
+Domain 10 — Real-Time Streaming
+Responsibility
+
+Provides the event-driven messaging infrastructure for the platform. It ingests telemetry through MQTT, processes and routes events via Kafka, dispatches events to backend services, and streams live updates to frontend clients through WebSockets.
+
+Directory Structure
+backend/app/
+
+streaming/
+├── mqtt_consumer.py
+├── kafka_consumer.py
+├── kafka_producer.py
+├── event_dispatcher.py
+├── websocket_manager.py
+├── serializers.py
+├── topics.py
+
+schemas/
+├── events.py
+
+api/v1/endpoints/
+├── websocket.py
+├── streaming.py
+
+services/
+├── stream_service.py
+Components
+MQTT Consumer
+
+Receives raw telemetry from IoT devices.
+
+Consumes:
+
+ev/telemetry
+ev/battery
+ev/location
+ev/charging
+ev/alerts
+
+Produces:
+
+telemetry.raw
+Kafka Producer
+
+Publishes processed platform events.
+
+Produces Topics
+
+telemetry.raw
+
+telemetry.processed
+
+predictions
+
+alerts
+
+maintenance
+
+supplychain
+Kafka Consumer
+
+Consumes platform events and dispatches them to domain services.
+
+Consumes
+
+telemetry.raw
+
+telemetry.processed
+
+predictions
+
+alerts
+
+maintenance
+
+supplychain
+Event Dispatcher
+
+Routes incoming Kafka events to the appropriate backend service.
+
+Routing
+
+telemetry.processed
+
+↓
+
+Telemetry Service
+
+
+predictions
+
+↓
+
+AI Prediction
+
+
+alerts
+
+↓
+
+Alert Service
+
+
+maintenance
+
+↓
+
+Maintenance Service
+
+
+supplychain
+
+↓
+
+Supply Chain Service
+WebSocket Manager
+
+Maintains active frontend connections and broadcasts live platform events.
+
+Event Topics
+telemetry.raw
+
+telemetry.processed
+
+predictions
+
+alerts
+
+maintenance
+
+supplychain
+WebSocket APIs
+WS /api/v1/ws/telemetry
+Purpose
+
+Streams live telemetry updates.
+
+Event Payload
+{
+  "vehicle_id": "EV-001",
+  "timestamp": "2026-07-14T18:30:00Z",
+  "soc": 82,
+  "voltage": 402,
+  "current": 32,
+  "temperature": 36.4,
+  "speed": 58
+}
+WS /api/v1/ws/battery
+Purpose
+
+Streams live battery status updates.
+
+Event Payload
+{
+  "vehicle_id": "EV-001",
+  "soc": 82,
+  "soh": 94,
+  "cycle_count": 521,
+  "temperature": 35.8
+}
+WS /api/v1/ws/predictions
+Purpose
+
+Streams AI prediction results.
+
+Event Payload
+{
+  "vehicle_id": "EV-001",
+  "prediction_type": "RUL",
+  "value": 486,
+  "unit": "cycles"
+}
+WS /api/v1/ws/alerts
+Purpose
+
+Streams alert events.
+
+Event Payload
+{
+  "alert_id": "ALT-1001",
+  "vehicle_id": "EV-001",
+  "severity": "HIGH",
+  "title": "High Battery Temperature"
+}
+WS /api/v1/ws/maintenance
+Purpose
+
+Streams maintenance updates.
+
+Event Payload
+{
+  "vehicle_id": "EV-001",
+  "work_order_id": "WO-1001",
+  "status": "SCHEDULED"
+}
+WS /api/v1/ws/supply-chain
+Purpose
+
+Streams live supply chain events.
+
+Event Payload
+{
+  "supplier_id": "SUP-001",
+  "risk_score": 91,
+  "risk_level": "HIGH"
+}
+Internal Testing APIs (Optional)
+
+These endpoints are intended only for development/testing and should be disabled or protected in production.
+
+POST /api/v1/streaming/publish
+Purpose
+
+Publishes a test event to a Kafka topic.
+
+Request
+{
+  "topic": "alerts",
+  "payload": {
+    "vehicle_id": "EV-001",
+    "severity": "HIGH"
+  }
+}
+Response
+{
+  "success": true,
+  "message": "Event Published"
+}
+GET /api/v1/streaming/topics
+Purpose
+
+Returns configured Kafka topics.
+
+Response
+{
+  "success": true,
+  "message": "Topics",
+  "data": [
+    "telemetry.raw",
+    "telemetry.processed",
+    "predictions",
+    "alerts",
+    "maintenance",
+    "supplychain"
+  ]
+}
+GET /api/v1/streaming/status
+Purpose
+
+Returns streaming infrastructure status.
+
+Response
+{
+  "success": true,
+  "message": "Streaming Status",
+  "data": {
+    "mqtt": "CONNECTED",
+    "kafka": "CONNECTED",
+    "websocket_clients": 12
+  }
+}
+Event Schemas
+TelemetryEvent
+vehicle_id: str
+timestamp: datetime
+soc: float
+voltage: float
+current: float
+temperature: float
+speed: float
+PredictionEvent
+vehicle_id: str
+prediction_type: str
+value: float
+unit: str
+AlertEvent
+alert_id: str
+vehicle_id: str
+severity: str
+title: str
+description: str
+MaintenanceEvent
+vehicle_id: str
+work_order_id: str
+status: str
+SupplyChainEvent
+supplier_id: str
+risk_score: float
+risk_level: str
+Enumerations
+KafkaTopics
+telemetry.raw
+
+telemetry.processed
+
+predictions
+
+alerts
+
+maintenance
+
+supplychain
+MQTTTopics
+ev/telemetry
+
+ev/battery
+
+ev/location
+
+ev/charging
+
+ev/alerts
+EventType
+TELEMETRY
+
+BATTERY
+
+PREDICTION
+
+ALERT
+
+MAINTENANCE
+
+SUPPLY_CHAIN
+Frontend Team Dependencies
+
+The frontend can integrate the following WebSocket endpoints:
+
+WS /api/v1/ws/telemetry
+WS /api/v1/ws/battery
+WS /api/v1/ws/predictions
+WS /api/v1/ws/alerts
+WS /api/v1/ws/maintenance
+WS /api/v1/ws/supply-chain
+
+Optional development endpoints:
+
+GET  /api/v1/streaming/status
+GET  /api/v1/streaming/topics
+POST /api/v1/streaming/publish
+
+Primary UI integrations:
+
+Live Fleet Dashboard
+Live Battery Widgets
+AI Prediction Panels
+Alert Notifications
+Maintenance Timeline
+Supply Chain Risk Dashboard
+Infrastructure Team Dependencies
+
+Required services:
+
+Mosquitto MQTT Broker
+
+Kafka Broker
+
+Kafka Consumer Group
+
+Kafka Producer
+
+WebSocket Server
+
+Required Kafka topics:
+
+telemetry.raw
+
+telemetry.processed
+
+predictions
+
+alerts
+
+maintenance
+
+supplychain
+
+Required MQTT topics:
+
+ev/telemetry
+
+ev/battery
+
+ev/location
+
+ev/charging
+
+ev/alerts
+
+Environment variables:
+
+MQTT_BROKER
+MQTT_PORT
+
+KAFKA_BOOTSTRAP_SERVERS
+
+KAFKA_GROUP_ID
+
+WEBSOCKET_MAX_CONNECTIONS
+ML Team Dependencies
+
+The ML team consumes processed telemetry and publishes prediction events.
+
+Consumes:
+
+telemetry.processed
+
+Publishes:
+
+predictions
+
+Expected prediction event:
+
+{
+  "vehicle_id": "EV-001",
+  "prediction_type": "THERMAL_RISK",
+  "score": 0.92,
+  "severity": "HIGH",
+  "timestamp": "2026-07-14T18:30:00Z"
+}
+
+The backend routes prediction events to:
+
+AI Prediction Service
+Alert Service
+WebSocket broadcasts
+Persistence (if required)
+Deliverables
+WebSocket APIs
+WS /api/v1/ws/telemetry
+WS /api/v1/ws/battery
+WS /api/v1/ws/predictions
+WS /api/v1/ws/alerts
+WS /api/v1/ws/maintenance
+WS /api/v1/ws/supply-chain
+Internal REST APIs
+POST /api/v1/streaming/publish
+GET  /api/v1/streaming/topics
+GET  /api/v1/streaming/status
+Event Schemas
+TelemetryEvent
+PredictionEvent
+AlertEvent
+MaintenanceEvent
+SupplyChainEvent
+Kafka Topics
+telemetry.raw
+telemetry.processed
+predictions
+alerts
+maintenance
+supplychain
+MQTT Topics
+ev/telemetry
+ev/battery
+ev/location
+ev/charging
+ev/alerts
+Enums
+KafkaTopics
+MQTTTopics
+EventType

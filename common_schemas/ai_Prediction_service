@@ -1,0 +1,437 @@
+Domain 5 — AI Prediction Service
+Responsibility
+
+Provides inference APIs for battery intelligence models. This module exposes machine learning predictions for battery health, remaining useful life, anomaly detection, and battery risk assessment. No model training or data preprocessing is performed within this service.
+
+Directory Structure
+backend/app/
+
+schemas/
+├── prediction.py
+
+api/v1/endpoints/
+├── prediction.py
+
+services/
+├── prediction_service.py
+├── model_router.py
+
+clients/
+├── ml_client.py
+Integrations
+ML Inference Service
+Model Registry (Future)
+Supported Models
+Remaining Useful Life (RUL)
+
+State of Health Prediction (SoH)
+
+Anomaly Detection
+
+Failure Probability
+
+Thermal Risk
+
+Voltage Risk
+Prediction Flow
+Frontend
+
+↓
+
+FastAPI
+
+↓
+
+Prediction Service
+
+↓
+
+ML Service
+
+↓
+
+Prediction Response
+
+↓
+
+Frontend
+API Definitions
+POST /api/v1/predict/rul
+Purpose
+
+Predicts Remaining Useful Life (RUL) of a battery.
+
+Request
+{
+  "vehicle_id":"EV-001",
+  "timestamp":"2026-07-14T18:30:00Z",
+  "state_of_charge":82,
+  "state_of_health":94.2,
+  "voltage":387.5,
+  "current":42.3,
+  "temperature":34.5,
+  "capacity_kwh":34.1,
+  "internal_resistance":0.012,
+  "cycle_count":412
+}
+Response
+{
+  "success":true,
+  "message":"Prediction Completed",
+  "data":{
+      "vehicle_id":"EV-001",
+      "remaining_cycles":318,
+      "remaining_days":214,
+      "confidence":0.95
+  }
+}
+POST /api/v1/predict/soh
+Purpose
+
+Predicts battery State of Health.
+
+Request
+{
+  "vehicle_id":"EV-001",
+  "timestamp":"2026-07-14T18:30:00Z",
+  "voltage":387.5,
+  "current":42.3,
+  "temperature":34.5,
+  "capacity_kwh":34.1,
+  "internal_resistance":0.012,
+  "cycle_count":412
+}
+Response
+{
+  "success":true,
+  "message":"Prediction Completed",
+  "data":{
+      "vehicle_id":"EV-001",
+      "predicted_soh":93.8,
+      "confidence":0.96
+  }
+}
+POST /api/v1/predict/anomaly
+Purpose
+
+Detects abnormal battery behaviour.
+
+Request
+{
+  "vehicle_id":"EV-001",
+  "voltage":387.5,
+  "current":42.3,
+  "temperature":58.2,
+  "state_of_charge":82,
+  "cycle_count":412
+}
+Response
+{
+  "success":true,
+  "message":"Prediction Completed",
+  "data":{
+      "vehicle_id":"EV-001",
+      "anomaly":true,
+      "severity":"HIGH",
+      "confidence":0.98
+  }
+}
+POST /api/v1/predict/failure
+Purpose
+
+Predicts battery failure probability.
+
+Request
+{
+  "vehicle_id":"EV-001",
+  "state_of_health":78,
+  "temperature":48,
+  "internal_resistance":0.021,
+  "cycle_count":812
+}
+Response
+{
+  "success":true,
+  "message":"Prediction Completed",
+  "data":{
+      "failure_probability":0.82,
+      "risk_level":"HIGH",
+      "confidence":0.93
+  }
+}
+POST /api/v1/predict/thermal-risk
+Purpose
+
+Evaluates thermal runaway risk.
+
+Request
+{
+  "vehicle_id":"EV-001",
+  "temperature":58,
+  "current":62,
+  "voltage":384
+}
+Response
+{
+  "success":true,
+  "message":"Prediction Completed",
+  "data":{
+      "thermal_risk":"HIGH",
+      "risk_score":91,
+      "confidence":0.94
+  }
+}
+POST /api/v1/predict/voltage-risk
+Purpose
+
+Evaluates voltage imbalance risk.
+
+Request
+{
+  "vehicle_id":"EV-001",
+  "cell_voltage_min":3.82,
+  "cell_voltage_max":4.12
+}
+Response
+{
+  "success":true,
+  "message":"Prediction Completed",
+  "data":{
+      "voltage_risk":"MEDIUM",
+      "imbalance":0.30,
+      "confidence":0.91
+  }
+}
+Model Metadata API
+GET /api/v1/predict/models
+Purpose
+
+Returns available prediction models.
+
+Response
+{
+    "success":true,
+    "message":"Available Models",
+    "data":[
+        {
+            "model":"RUL",
+            "version":"1.0"
+        },
+        {
+            "model":"SOH",
+            "version":"1.0"
+        },
+        {
+            "model":"ANOMALY",
+            "version":"1.0"
+        }
+    ]
+}
+Prediction History
+GET /api/v1/predict/history
+Purpose
+
+Returns historical prediction results.
+
+Query Parameters
+vehicle_id
+
+prediction_type
+
+start_time
+
+end_time
+Pydantic Schemas
+PredictionRequest
+vehicle_id:str
+timestamp:datetime
+state_of_charge:float
+state_of_health:float
+voltage:float
+current:float
+temperature:float
+capacity_kwh:float
+internal_resistance:float
+cycle_count:int
+PredictionResponse
+vehicle_id:str
+prediction_type:str
+prediction:float
+confidence:float
+generated_at:datetime
+AnomalyResponse
+vehicle_id:str
+anomaly:bool
+severity:str
+confidence:float
+RiskResponse
+vehicle_id:str
+risk_level:str
+risk_score:float
+confidence:float
+Enumerations
+PredictionType
+RUL
+
+SOH
+
+ANOMALY
+
+FAILURE
+
+THERMAL
+
+VOLTAGE
+RiskLevel
+LOW
+
+MEDIUM
+
+HIGH
+
+CRITICAL
+ModelStatus
+AVAILABLE
+
+LOADING
+
+OFFLINE
+Frontend Team Dependencies
+
+The frontend can immediately integrate the following endpoints:
+
+POST /api/v1/predict/rul
+
+POST /api/v1/predict/soh
+
+POST /api/v1/predict/anomaly
+
+POST /api/v1/predict/failure
+
+POST /api/v1/predict/thermal-risk
+
+POST /api/v1/predict/voltage-risk
+
+GET /api/v1/predict/history
+
+GET /api/v1/predict/models
+
+Primary UI screens:
+
+AI Prediction Dashboard
+RUL Card
+Battery Health Card
+Anomaly Panel
+Risk Analysis
+Prediction History
+Infrastructure Team Dependencies
+
+Required deployment:
+
+ML Inference Service
+
+REST Endpoint
+
+or
+
+ONNX Runtime
+
+or
+
+TorchServe
+
+or
+
+Local Model Loader
+
+Environment variables
+
+ML_SERVICE_URL
+
+MODEL_TIMEOUT
+
+MODEL_VERSION
+ML Team Dependencies
+
+This is the primary integration point between Backend and ML.
+
+ML Service Contract
+
+Required endpoint
+
+POST /predict
+
+Input
+
+{
+    "prediction_type":"RUL",
+    "features":{}
+}
+
+Output
+
+{
+    "prediction":318,
+    "confidence":0.94
+}
+
+Backend handles:
+
+Validation
+Authentication
+Routing
+Error handling
+Response formatting
+
+ML handles:
+
+Feature preprocessing (if required)
+Model inference
+Confidence calculation
+Error Codes
+MODEL_NOT_FOUND
+
+MODEL_TIMEOUT
+
+INVALID_FEATURE_VECTOR
+
+INFERENCE_FAILED
+
+PREDICTION_NOT_SUPPORTED
+Deliverables
+APIs
+POST /api/v1/predict/rul
+
+POST /api/v1/predict/soh
+
+POST /api/v1/predict/anomaly
+
+POST /api/v1/predict/failure
+
+POST /api/v1/predict/thermal-risk
+
+POST /api/v1/predict/voltage-risk
+
+GET /api/v1/predict/models
+
+GET /api/v1/predict/history
+Schemas
+PredictionRequest
+
+PredictionResponse
+
+AnomalyResponse
+
+RiskResponse
+Enums
+PredictionType
+
+RiskLevel
+
+ModelStatus
+Environment Variables
+ML_SERVICE_URL
+
+MODEL_TIMEOUT
+
+MODEL_VERSION

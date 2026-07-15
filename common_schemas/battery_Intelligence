@@ -1,0 +1,354 @@
+Domain 4 — Battery Intelligence
+Responsibility
+
+Provides monitoring and management APIs for battery health and battery status. This module exposes current battery metrics and historical battery information without performing any predictive analysis or AI inference.
+
+Directory Structure
+backend/app/
+
+models/
+├── battery_health.py
+├── battery_status.py
+
+schemas/
+├── battery.py
+
+api/v1/endpoints/
+├── battery.py
+
+services/
+├── battery_service.py
+Main Entities
+BatteryHealth
+
+Stores long-term battery health indicators.
+
+Attributes
+battery_health_id
+vehicle_id
+timestamp
+state_of_health
+capacity_kwh
+capacity_percentage
+internal_resistance
+cycle_count
+remaining_capacity
+battery_age_days
+BatteryStatus
+
+Stores real-time battery operating parameters.
+
+Attributes
+battery_status_id
+vehicle_id
+timestamp
+state_of_charge
+voltage
+current
+power
+temperature_avg
+temperature_max
+temperature_min
+cell_voltage_min
+cell_voltage_max
+charging_status
+battery_status
+Database Relationships
+Vehicle
+
+1
+│
+├──────────────┐
+│              │
+▼              ▼
+BatteryHealth  BatteryStatus
+API Definitions
+GET /api/v1/battery/status
+Purpose
+
+Returns the latest battery operating status for a vehicle.
+
+Query Parameters
+vehicle_id
+Response
+{
+  "success": true,
+  "message": "Battery Status",
+  "data": {
+    "vehicle_id": "EV-001",
+    "timestamp": "2026-07-14T18:30:00Z",
+    "state_of_charge": 82,
+    "voltage": 387.5,
+    "current": 42.3,
+    "power": 16.4,
+    "temperature_avg": 34.6,
+    "temperature_max": 36.1,
+    "temperature_min": 33.8,
+    "cell_voltage_min": 3.88,
+    "cell_voltage_max": 3.96,
+    "charging_status": "DISCHARGING",
+    "battery_status": "NORMAL"
+  }
+}
+GET /api/v1/battery/health
+Purpose
+
+Returns the latest battery health metrics.
+
+Query Parameters
+vehicle_id
+Response
+{
+  "success": true,
+  "message": "Battery Health",
+  "data": {
+    "vehicle_id": "EV-001",
+    "state_of_health": 94.8,
+    "capacity_kwh": 34.2,
+    "capacity_percentage": 97.7,
+    "internal_resistance": 0.012,
+    "cycle_count": 412,
+    "remaining_capacity": 33.5,
+    "battery_age_days": 521
+  }
+}
+GET /api/v1/battery/summary
+Purpose
+
+Returns battery summary information for dashboard cards.
+
+Query Parameters
+vehicle_id
+Response
+{
+  "success": true,
+  "message": "Battery Summary",
+  "data": {
+    "state_of_charge": 82,
+    "state_of_health": 94.8,
+    "battery_status": "NORMAL",
+    "charging_status": "DISCHARGING"
+  }
+}
+GET /api/v1/battery/history
+Purpose
+
+Returns historical battery metrics.
+
+Query Parameters
+vehicle_id
+metric
+start_time
+end_time
+interval
+
+Supported Metrics
+
+state_of_charge
+state_of_health
+voltage
+current
+temperature
+capacity
+internal_resistance
+cycle_count
+Response
+{
+  "success": true,
+  "message": "Battery History",
+  "data": [
+    {
+      "timestamp": "2026-07-14T18:00:00Z",
+      "value": 84
+    },
+    {
+      "timestamp": "2026-07-14T18:05:00Z",
+      "value": 83
+    }
+  ]
+}
+GET /api/v1/battery/cells
+Purpose
+
+Returns battery cell-level voltage and temperature information.
+
+Query Parameters
+vehicle_id
+Response
+{
+  "success": true,
+  "message": "Battery Cell Status",
+  "data": {
+    "cells": [
+      {
+        "cell_id": 1,
+        "voltage": 3.91,
+        "temperature": 33.4
+      },
+      {
+        "cell_id": 2,
+        "voltage": 3.92,
+        "temperature": 33.8
+      }
+    ]
+  }
+}
+
+
+GET /api/v1/battery/metrics
+Purpose
+
+Returns all available battery monitoring metrics.
+
+Query Parameters
+vehicle_id
+Response
+{
+  "success": true,
+  "message": "Battery Metrics",
+  "data": {
+    "state_of_charge": 82,
+    "state_of_health": 94.8,
+    "capacity_kwh": 34.2,
+    "voltage": 387.5,
+    "current": 42.3,
+    "power": 16.4,
+    "temperature_avg": 34.6,
+    "temperature_max": 36.1,
+    "temperature_min": 33.8,
+    "internal_resistance": 0.012,
+    "cycle_count": 412
+  }
+}
+Pydantic Schemas
+BatteryStatusResponse
+vehicle_id: str
+timestamp: datetime
+state_of_charge: float
+voltage: float
+current: float
+power: float
+temperature_avg: float
+temperature_max: float
+temperature_min: float
+cell_voltage_min: float
+cell_voltage_max: float
+charging_status: str
+battery_status: str
+BatteryHealthResponse
+vehicle_id: str
+timestamp: datetime
+state_of_health: float
+capacity_kwh: float
+capacity_percentage: float
+internal_resistance: float
+cycle_count: int
+remaining_capacity: float
+battery_age_days: int
+BatteryHistoryResponse
+timestamp: datetime
+value: float
+BatteryCellResponse
+cell_id: int
+voltage: float
+temperature: float
+Enumerations
+BatteryStatus
+NORMAL
+WARNING
+CRITICAL
+OFFLINE
+ChargingStatus
+CHARGING
+DISCHARGING
+IDLE
+FULLY_CHARGED
+BatteryMetric
+state_of_charge
+state_of_health
+voltage
+current
+power
+temperature
+capacity
+internal_resistance
+cycle_count
+Frontend Team Dependencies
+
+The frontend can immediately integrate the following endpoints:
+
+GET /api/v1/battery/status
+GET /api/v1/battery/health
+GET /api/v1/battery/summary
+GET /api/v1/battery/history
+GET /api/v1/battery/cells
+GET /api/v1/battery/metrics
+
+Primary UI screens:
+
+Battery Overview
+Battery Health Card
+Battery Status Gauge
+Cell Monitoring
+Historical Battery Charts
+Infrastructure Team Dependencies
+
+Required database tables:
+
+battery_health
+battery_status
+
+These tables may be populated directly from processed telemetry data or derived periodically from TimescaleDB, depending on the implementation strategy.
+
+ML Team Dependencies
+
+This domain provides the monitored battery features required as inputs to prediction models. No prediction APIs are exposed here.
+
+Required fields:
+
+vehicle_id
+timestamp
+state_of_charge
+state_of_health
+capacity_kwh
+capacity_percentage
+voltage
+current
+power
+temperature_avg
+temperature_max
+temperature_min
+internal_resistance
+cycle_count
+cell_voltage_min
+cell_voltage_max
+charging_status
+
+These values are consumed by the ML team for:
+
+Remaining Useful Life (RUL) prediction
+State of Health (SoH) estimation
+Battery degradation analysis
+Anomaly detection
+Deliverables
+APIs
+GET /api/v1/battery/status
+GET /api/v1/battery/health
+GET /api/v1/battery/summary
+GET /api/v1/battery/history
+GET /api/v1/battery/cells
+GET /api/v1/battery/metrics
+
+
+Schemas
+BatteryStatusResponse
+BatteryHealthResponse
+BatteryHistoryResponse
+BatteryCellResponse
+Database Tables
+battery_health
+battery_status
+Enums
+BatteryStatus
+ChargingStatus
+BatteryMetric

@@ -1,0 +1,435 @@
+backend/app/
+
+models/
+├── vehicle.py
+├── fleet.py
+├── vehicle_profile.py
+
+schemas/
+├── vehicle.py
+├── fleet.py
+├── assignment.py
+
+api/v1/endpoints/
+├── fleet.py
+├── vehicles.py
+
+services/
+├── fleet_service.py
+├── vehicle_service.py
+
+
+
+==========================================================================
+
+Main Entities
+
+Vehicle: Stores core information for each EV.
+Attributes:
+vehicle_id
+fleet_id
+vehicle_number
+vehicle_name
+manufacturer
+model
+battery_capacity_kwh
+vehicle_type
+manufacturing_year
+status
+assignment_status
+created_at
+updated_at
+
+
+Fleet: Logical grouping of vehicles.
+Attributes:
+fleet_id
+fleet_name
+organization
+description
+location
+total_vehicles
+created_at
+updated_at
+
+
+VehicleProfile: Extended metadata for a vehicle.
+Attributes:
+vehicle_id
+vin
+firmware_version
+battery_serial_number
+odometer
+last_service_date
+purchase_date
+warranty_expiry
+
+
+DB relationship : 
+Fleet: 1 to many
+vechicle: 1 to 1
+
+
+==========================================================================
+
+API Definitions
+GET /api/v1/fleet
+Purpose: Returns all registered fleets.
+Request: No payload.
+Response
+{
+  "success": true,
+  "message": "Fleet List",
+  "data": [
+    {
+      "fleet_id": 1,
+      "fleet_name": "South Region Fleet",
+      "organization": "ABC Logistics",
+      "total_vehicles": 42,
+      "location": "Chennai"
+    }
+  ]
+}
+
+
+POST /api/v1/fleet
+Purpose: Creates a new fleet.
+Request
+{
+  "fleet_name": "South Region Fleet",
+  "organization": "ABC Logistics",
+  "description": "Primary delivery fleet",
+  "location": "Chennai"
+}
+Response
+{
+  "success": true,
+  "message": "Fleet Created",
+  "data": {
+    "fleet_id": 1
+  }
+}
+
+
+GET /api/v1/fleet/{fleet_id}
+Purpose: Returns fleet details.
+Response
+{
+  "success": true,
+  "message": "Fleet Details",
+  "data": {
+    "fleet_id": 1,
+    "fleet_name": "South Region Fleet",
+    "organization": "ABC Logistics",
+    "total_vehicles": 42
+  }
+}
+
+
+PATCH /api/v1/fleet/{fleet_id}
+Purpose: Updates fleet information.
+Request
+{
+  "fleet_name": "Updated Fleet",
+  "location": "Bangalore"
+}
+Response
+{
+  "success": true,
+  "message": "Fleet Updated"
+}
+
+
+DELETE /api/v1/fleet/{fleet_id}
+Purpose: Deletes a fleet.
+Response
+{
+  "success": true,
+  "message": "Fleet Deleted"
+}
+
+
+Vehicle APIs
+GET /api/v1/vehicles
+Purpose: Returns all registered vehicles.
+
+Query Parameters:
+fleet_id
+status
+vehicle_type
+page
+limit
+
+Response
+{
+  "success": true,
+  "message": "Vehicle List",
+  "data": [
+    {
+      "vehicle_id": "EV-001",
+      "fleet_id": 1,
+      "vehicle_number": "TN01AB1234",
+      "manufacturer": "Tata",
+      "model": "Ace EV",
+      "status": "ACTIVE"
+    }
+  ]
+}
+
+
+POST /api/v1/vehicles
+Purpose: Registers a new vehicle.
+Request
+{
+  "fleet_id": 1,
+  "vehicle_number": "TN01AB1234",
+  "vehicle_name": "Delivery Van 1",
+  "manufacturer": "Tata",
+  "model": "Ace EV",
+  "battery_capacity_kwh": 35,
+  "vehicle_type": "Cargo"
+}
+Response
+{
+  "success": true,
+  "message": "Vehicle Registered",
+  "data": {
+    "vehicle_id": "EV-001"
+  }
+}
+
+
+GET /api/v1/vehicles/{vehicle_id}
+Purpose: Returns complete vehicle information.
+Response
+{
+  "success": true,
+  "message": "Vehicle Details",
+  "data": {
+    "vehicle_id": "EV-001",
+    "fleet_id": 1,
+    "manufacturer": "Tata",
+    "model": "Ace EV",
+    "battery_capacity_kwh": 35,
+    "status": "ACTIVE"
+  }
+}
+
+
+PATCH /api/v1/vehicles/{vehicle_id}
+Purpose: Updates vehicle metadata.
+Request
+{
+  "status": "MAINTENANCE"
+}
+Response
+{
+  "success": true,
+  "message": "Vehicle Updated"
+}
+
+
+DELETE /api/v1/vehicles/{vehicle_id}
+Purpose: Removes vehicle from fleet.
+Response
+{
+  "success": true,
+  "message": "Vehicle Deleted"
+}
+
+
+Vehicle Profile APIs
+GET /api/v1/vehicles/{vehicle_id}/profile
+Purpose: Returns complete vehicle profile.
+Response
+{
+  "success": true,
+  "message": "Vehicle Profile",
+  "data": {
+    "vin": "MA3EV123456",
+    "firmware_version": "v2.1.0",
+    "battery_serial_number": "BAT-00982",
+    "purchase_date": "2024-01-01",
+    "warranty_expiry": "2032-01-01"
+  }
+}
+
+
+PATCH /api/v1/vehicles/{vehicle_id}/profile
+Purpose: Updates profile information.
+
+Request
+{
+  "firmware_version": "v2.2.0"
+}
+Response
+{
+  "success": true,
+  "message": "Profile Updated"
+}
+
+
+Assignment APIs
+POST /api/v1/vehicles/{vehicle_id}/assign
+Purpose: Assigns vehicle to a fleet or operational unit.
+
+Request
+{
+  "fleet_id": 2
+}
+Response
+{
+  "success": true,
+  "message": "Vehicle Assigned"
+}
+
+
+POST /api/v1/vehicles/{vehicle_id}/unassign
+Purpose: Removes vehicle assignment.
+Response
+{
+  "success": true,
+  "message": "Vehicle Unassigned"
+}
+
+
+Fleet Summary API
+GET /api/v1/fleet/summary
+Purpose : Returns fleet-level KPIs for dashboard overview.
+Response
+{
+  "success": true,
+  "message": "Fleet Summary",
+  "data": {
+    "total_fleets": 5,
+    "total_vehicles": 120,
+    "active": 110,
+    "maintenance": 6,
+    "inactive": 4
+  }
+}
+
+
+
+GET    /api/v1/fleet
+POST   /api/v1/fleet
+GET    /api/v1/fleet/{fleet_id}
+PATCH  /api/v1/fleet/{fleet_id}
+DELETE /api/v1/fleet/{fleet_id}
+
+GET    /api/v1/fleet/summary
+
+GET    /api/v1/vehicles
+POST   /api/v1/vehicles
+GET    /api/v1/vehicles/{vehicle_id}
+PATCH  /api/v1/vehicles/{vehicle_id}
+DELETE /api/v1/vehicles/{vehicle_id}
+
+GET    /api/v1/vehicles/{vehicle_id}/profile
+PATCH  /api/v1/vehicles/{vehicle_id}/profile
+
+POST   /api/v1/vehicles/{vehicle_id}/assign
+POST   /api/v1/vehicles/{vehicle_id}/unassign
+
+
+==========================================================================
+
+Pydantic Schemas:
+
+VehicleCreate
+fleet_id: int
+vehicle_number: str
+vehicle_name: str
+manufacturer: str
+model: str
+battery_capacity_kwh: float
+vehicle_type: str
+
+
+VehicleUpdate
+vehicle_name: Optional[str]
+status: Optional[str]
+battery_capacity_kwh: Optional[float]
+
+
+FleetCreate
+fleet_name: str
+organization: str
+description: str
+location: str
+
+
+VehicleProfileResponse:
+vehicle_id: str
+vin: str
+firmware_version: str
+battery_serial_number: str
+purchase_date: date
+warranty_expiry: date
+
+===================================================================================
+Enumerations:
+
+VehicleStatus
+  ACTIVE
+  IDLE
+  CHARGING
+  MAINTENANCE
+  OFFLINE
+  RETIRED
+
+VehicleType
+  Cargo
+  Passenger
+  Bus
+  Truck
+  Forklift
+  Other
+
+AssignmentStatus
+  ASSIGNED
+  UNASSIGNED
+
+
+==============================================================================================
+
+Frontend Team Dependencies:
+The frontend can immediately build the Fleet Management pages using these endpoints:
+
+GET  /api/v1/fleet
+GET  /api/v1/fleet/summary
+GET  /api/v1/fleet/{fleet_id}
+
+GET  /api/v1/vehicles
+GET  /api/v1/vehicles/{vehicle_id}
+GET  /api/v1/vehicles/{vehicle_id}/profile
+
+Primary UI screens:
+
+Fleet Overview
+Vehicle List
+Vehicle Details
+Vehicle Profile
+Fleet Summary Cards
+
+================================================================================================
+Infrastructure Team Dependencies
+
+Required services:
+PostgreSQL
+
+Tables:
+fleet
+vehicle
+vehicle_profile
+
+Foreign Keys:
+vehicle.fleet_id -> fleet.fleet_id
+vehicle_profile.vehicle_id -> vehicle.vehicle_id
+
+================================================================================================
+ML Team Dependencies
+No direct dependencies.
+ML services should only consume the immutable identifier:
+vehicle_id
+All telemetry, prediction, and maintenance modules should reference the same vehicle_id to maintain consistency across the platform.

@@ -53,13 +53,19 @@ async def lifespan(app: FastAPI):
     kafka_consumer.register_callback("ev.charging", kafka_to_ws_broadcaster)
     kafka_consumer.register_callback("ev.charging", telemetry_processor.process_charging)
 
+    # Map the incoming stream topic straight into the processing instance method
+    kafka_consumer.register_callback(
+        topic="ev.alerts",
+        callback=telemetry_processor.process_alerts
+    )
+
     await kafka_producer.start()
     await kafka_consumer.start()
     await mqtt_client.start()
-    
+
     print(">>> FastAPI Enterprise Platform Streaming Engine Running <<<")
-    yield 
-    
+    yield
+
     await mqtt_client.stop()
     await kafka_consumer.stop()
     await kafka_producer.stop()

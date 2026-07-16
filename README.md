@@ -42,6 +42,7 @@ graph TD
     class TSDB,Neo4j db;
     class Mosquitto,Kafka broker;
     class ML,Anom,RUL engine;
+
 ```
 
 ---
@@ -49,30 +50,34 @@ graph TD
 ## 🌟 Key Platform Capabilities
 
 ### 1. High-Throughput Telemetry Streaming
-*   Continuous state transmission (Voltage, Current, State of Charge, Core temperature) via **MQTT**.
-*   Buffered event ingestion using **Apache Kafka** partitioned topic distributions.
-*   Timeseries persistence leveraging **TimescaleDB** hypertables with dynamic temporal indexing and range-partition optimizations.
+
+* Continuous state transmission (Voltage, Current, State of Charge, Core temperature) via **MQTT**.
+* Buffered event ingestion using **Apache Kafka** partitioned topic distributions.
+* Timeseries persistence leveraging **TimescaleDB** hypertables with dynamic temporal indexing and range-partition optimizations.
 
 ### 2. Battery & Predictive Maintenance Intelligence
-*   **State of Health (SoH) Analytics:** Tracks capacity fade using cumulative discharge integration (Ah depletion curves).
-*   **Remaining Useful Life (RUL) Forecasting:** Predicts cycles remaining until battery capacity falls below the 80% degradation threshold using **XGBoost regression**.
-*   **Anomaly Diagnostics:** Identifies thermal runaways and cell-level voltage imbalances using unsupervised **Isolation Forest models**.
+
+* **State of Health (SoH) Analytics:** Tracks capacity fade using cumulative discharge integration (Ah depletion curves).
+* **Remaining Useful Life (RUL) Forecasting:** Predicts cycles remaining until battery capacity falls below the 80% degradation threshold using **XGBoost regression**.
+* **Anomaly Diagnostics:** Identifies thermal runaways and cell-level voltage imbalances using unsupervised **Isolation Forest models**.
 
 ### 3. Supply Chain Graph Analytics
-*   Maps multi-tier mineral dependencies (Mine ➔ Refiner ➔ Battery Plant ➔ Assembly Pack ➔ Fleet Vehicle) using **Neo4j Graph Database**.
-*   Propagates cascading risks (geopolitical instability, shipping bottlenecks, and material shortage) along supply chains utilizing optimized Cypher graph traversal algorithms.
+
+* Maps multi-tier mineral dependencies (Mine ➔ Refiner ➔ Battery Plant ➔ Assembly Pack ➔ Fleet Vehicle) using **Neo4j Graph Database**.
+* Propagates cascading risks (geopolitical instability, shipping bottlenecks, and material shortage) along supply chains utilizing optimized Cypher graph traversal algorithms.
 
 ### 4. Carbon & Electrification Analytics
-*   Displaces direct Scope-1 combustion emissions vs Scope-3 charging grid emissions (based on local carbon intensity coefficients).
-*   Calculates EV conversion suitability scores for internal combustion engine (ICE) routes based on payload, travel distances, charging station density, and depot dwell times.
+
+* Displaces direct Scope-1 combustion emissions vs Scope-3 charging grid emissions (based on local carbon intensity coefficients).
+* Calculates EV conversion suitability scores for internal combustion engine (ICE) routes based on payload, travel distances, charging station density, and depot dwell times.
 
 ---
 
 ## 🛠️ Tech Stack Alignment
 
 | Layer | Technologies | Key Functionality |
-| :--- | :--- | :--- |
-| **Frontend UI** | React, TypeScript, TailwindCSS, ShadCN UI, Recharts | Control dashboard views, responsive metrics widgets, live WebSocket visualization |
+| --- | --- | --- |
+| **Frontend UI** | React 18, TypeScript, TailwindCSS, ShadCN UI, Recharts, React-Leaflet (v4) | Control dashboard views, responsive metrics widgets, live WebSocket visualization, dark-mesh maps |
 | **API Backend** | FastAPI, SQLAlchemy, Pydantic, Uvicorn | REST endpoints, Swagger/OpenAPI documentation, WebSocket gateways |
 | **Databases** | TimescaleDB (PostgreSQL), Neo4j Graph Database | Scalable telemetry timeseries, multi-tier dependency mapping |
 | **Event Pipeline** | Eclipse Mosquitto (MQTT), Apache Kafka, Zookeeper | Sub-second telemetry publisher/subscriber and streaming queues |
@@ -90,7 +95,7 @@ graph TD
 │   ├── package.json                # Frontend package dependencies
 │   ├── tsconfig.json               # TypeScript compiler config
 │   ├── tailwind.config.js          # Tailwind theme configurations
-│   ├── components.json            # ShadCN UI components config
+│   ├── components.json             # ShadCN UI components config
 │   ├── src/
 │   │   ├── components/             # Reusable UI widgets (gauges, alerts panels)
 │   │   ├── layouts/                # Dashboard sidebar and navbar shell
@@ -113,18 +118,33 @@ graph TD
     ├── neo4j/                      # Cypher query imports & relationship setup
     ├── kafka/                      # Kafka producers & consumers
     └── mosquitto/                  # MQTT broker configurations
+
 ```
 
 ---
 
-### 2. Infrastructure Setup
-Spin up the local containerized databases, brokers, and event pipelines (including auto-provisioning Kafka topics):
+## 🚀 Environment Launch Instructions
+
+### 1. Infrastructure Setup
+
+Spin up the local containerized databases, brokers, and event pipelines:
+
 ```bash
 docker-compose up -d
 
 ```
 
 *(Optional: Verify Kafka topics are created by checking the setup logs: `docker logs -f kafka_setup`)*
+
+### 2. Initialize TimescaleDB Hypertables
+
+From the backend directory, provision your IoT tracking schemas:
+
+```bash
+cd backend
+python -m app.db.init_timescale
+
+```
 
 ### 3. Backend Setup
 
@@ -150,349 +170,34 @@ npm run dev
 
 *Access the control dashboard interface at [http://localhost:3000](http://localhost:3000).*
 
-### 5. End-to-End Infrastructure Pipeline Test
+### 5. Running the End-to-End Pipeline
 
-To test the flow of data from generation to Kafka consumption, configure a Python virtual environment at the project root:
+Open three separate terminal windows, activate your virtual environment, and execute these components in order to see telemetry route in real-time:
 
-```bash
-# Create and activate the virtual environment
-python3 -m venv venv
-source venv/bin/activate  # On Windows: venv\Scripts\activate
-
-# Install messaging dependencies
-pip install paho-mqtt kafka-python numpy
-
-```
-
-Open **three separate terminal windows**, activate the virtual environment (`source venv/bin/activate`) in each, and run the following services in order:
-
-**Terminal 1: Start the Kafka Consumer (Destination)**
-
-```bash
-python infrastructure/kafka/consumers/telemetry_consumer.py
-
-```
-
-**Terminal 2: Start the MQTT-to-Kafka Bridge (Router)**
-
-```bash
-python infrastructure/kafka/mqtt_kafka_bridge.py
-
-```
-
-**Terminal 3: Start the Data Simulator (Source)**
-
-```bash
-python ml/simulator/simulator.py
-
-```
-
-
-
-
-
-
-
-
-
-# Telemetry & Time-Series Service
-
-The **Telemetry & Time-Series Service** is responsible for ingesting, processing, storing, and serving real-time Industrial EV telemetry data.
-
-It forms the core data pipeline between the vehicle simulator, messaging infrastructure, database, and frontend dashboard. The service consumes validated telemetry events from Kafka, persists them into **TimescaleDB**, and exposes both REST APIs and WebSocket streams for real-time and historical analytics.
+* **Terminal 1 (Destination Database Engine):** `python infrastructure/kafka/consumers/db_writer.py`
+* **Terminal 2 (MQTT-to-Kafka Stream Router):** `python infrastructure/kafka/mqtt_kafka_bridge.py`
+* **Terminal 3 (Synthetic Sensor Stream Simulator):** `python ml/simulator/simulator.py`
 
 ---
 
-# Responsibilities
+## 🖥️ What to Expect: Frontend Live Experience
 
-- Vehicle telemetry ingestion
-- Battery metric persistence
-- GPS location tracking
-- Charging session management
-- Historical telemetry retrieval
-- Time-series aggregation
-- Real-time WebSocket streaming
+Once your environment is completely launched and the backend simulators are broadcasting data, the frontend application provides a high-fidelity workspace:
 
----
+### 📊 Real-Time Telemetry Performance Counters
 
-# Architecture
+* **Ingestion Metrics:** The upper banner displays a live processing widget displaying real-time text such as `Ingesting: 4 Telemetry msg/sec`. This guarantees the active telemetry pipeline is communicating correctly.
+* **Synchronized States:** The **Active Assets**, **Average SoC**, and **Health Index** panels update instantly as new frames land from the network thread.
 
-```
-                          VEHICLE SIMULATOR
-                                 │
-                                 ▼
-                          MQTT Broker
-                                 │
-                                 ▼
-                     Backend Streaming Layer
-               (Validation → Normalization)
-                                 │
-                                 ▼
-                            Kafka Broker
-                                 │
-              ┌──────────────────┴──────────────────┐
-              │                                     │
-              ▼                                     ▼
-      WebSocket Broadcast                 Telemetry Processor
-                                                    │
-                                                    ▼
-                                             Service Layer
-                                                    │
-                                                    ▼
-                                             Repository Layer
-                                                    │
-                                                    ▼
-                                               TimescaleDB
-                                                    │
-                                                    ▼
-                                               REST APIs
-                                                    │
-                                                    ▼
-                                              Frontend UI
-```
+### 🗺️ Live Dark-Mesh Geospatial Telemetry Map
 
----
+* **Automatic Viewport Centering:** The integrated map dynamically handles multi-vehicle tracking bounds via an automated map bounding-box algorithm (`MapUpdater`). It automatically centers and pans around your live active vehicles.
+* **Interactive Layer Markers:** Map markers override default legacy graphics with modern glowing DOM circles containing animated custom ping rings indicating live connectivity.
+* **Dynamic Status Coloring:** Healthy nodes render in **Emerald Green**, while any asset suffering structural anomalies (e.g., motor temperatures crossing over `40.0°C`) automatically updates its state inside the state engine, instantly rendering as a **Blinking Red Alert Marker** on the canvas. Clicking any marker reveals an analytical diagnostic pop-up block.
 
-# Data Flow
+### 📋 Fleet Telemetry Data Grid
+
+* The main interface features an exhaustive asset grid logging **Speed**, **Exact Location Coordinates**, **Motor Temperatures**, and **Torque Loads**.
+* Columns update dynamically without interface stuttering or full-page rendering cycles, featuring colored indicators mapping back to warning flags.
 
 ```
-Simulator
-    ↓
-MQTT
-    ↓
-Kafka
-    ↓
-Telemetry Processor
-    ↓
-Telemetry Service
-    ↓
-Repository
-    ↓
-TimescaleDB
-    ↓
-REST APIs
-```
-
-Live updates are simultaneously broadcast through WebSockets:
-
-```
-Kafka Consumer
-      │
-      ├────────► WebSocket Clients
-      │
-      └────────► Database Persistence
-```
-
----
-
-# API Endpoints
-
-## Telemetry
-
-| Method | Endpoint | Description |
-|---------|----------|-------------|
-| POST | `/api/v1/telemetry` | Manual telemetry ingestion (testing/debugging). |
-| GET | `/api/v1/telemetry/latest` | Returns the latest telemetry for a vehicle. |
-| GET | `/api/v1/telemetry/history` | Returns historical telemetry records. |
-| GET | `/api/v1/telemetry/timeseries` | Returns aggregated time-series data for visualization. |
-
----
-
-## Battery
-
-| Method | Endpoint | Description |
-|---------|----------|-------------|
-| GET | `/api/v1/battery/latest` | Returns the latest battery metrics for a vehicle. |
-
----
-
-## Charging
-
-| Method | Endpoint | Description |
-|---------|----------|-------------|
-| POST | `/api/v1/charging/session` | Starts a charging session. |
-| PATCH | `/api/v1/charging/session/{session_id}` | Completes or updates a charging session. |
-| GET | `/api/v1/charging/history` | Returns charging history. |
-
----
-
-## Location
-
-| Method | Endpoint | Description |
-|---------|----------|-------------|
-| POST | `/api/v1/location` | Manual location ingestion (testing/debugging). |
-| GET | `/api/v1/location/latest` | Returns the latest GPS location. |
-| GET | `/api/v1/location/history` | Returns historical GPS coordinates. |
-
----
-
-## WebSocket
-
-| Endpoint | Description |
-|----------|-------------|
-| `WS /api/v1/ws/telemetry` | Streams live telemetry events to connected dashboard clients. |
-
----
-
-# Kafka Topics
-
-The Telemetry Service consumes the following Kafka topics:
-
-| Topic | Description |
-|--------|-------------|
-| `ev.telemetry` | Vehicle telemetry |
-| `ev.battery` | Battery metrics |
-| `ev.location` | GPS location |
-| `ev.charging` | Charging session events |
-
----
-
-# Database
-
-The service stores data in **TimescaleDB**.
-
-### Hypertables
-
-- `telemetry`
-- `location_history`
-
-### Relational Tables
-
-- `charging_sessions`
-
----
-
-# Service Components
-
-```
-telemetry/
-│
-├── api/
-├── models/
-├── schemas/
-├── repository/
-├── services/
-├── processors/
-└── validators/
-```
-
----
-
-# Processing Pipeline
-
-```
-Kafka Consumer
-        │
-        ▼
-Telemetry Processor
-        │
-        ▼
-Telemetry Service
-        │
-        ▼
-Repository Layer
-        │
-        ▼
-TimescaleDB
-```
-
----
-
-# Repository Responsibilities
-
-### Telemetry Repository
-
-- Insert telemetry
-- Bulk insert telemetry
-- Latest telemetry
-- Historical telemetry
-- Time-series aggregation
-
-### Charging Repository
-
-- Create charging session
-- Update charging session
-- Retrieve charging history
-
-### Location Repository
-
-- Store GPS coordinates
-- Retrieve latest location
-- Retrieve location history
-
----
-
-# Running the Service
-
-## 1. Start Infrastructure
-
-```bash
-cd infrastructure
-docker compose up -d
-```
-
----
-
-## 2. Initialize TimescaleDB
-
-```bash
-cd backend
-
-python -m app.db.init_timescale
-```
-
----
-
-## 3. Start Backend
-
-```bash
-uvicorn app.main:app --reload
-```
-
----
-
-## 4. Start MQTT → Kafka Bridge
-
-```bash
-python infrastructure/kafka/mqtt_kafka_bridge.py
-```
-
----
-
-## 5. Start Database Writer
-
-```bash
-python infrastructure/kafka/consumers/db_writer.py
-```
-
----
-
-## 6. Start Debug Consumer (Optional)
-
-```bash
-python infrastructure/kafka/consumers/telemetry_consumer.py
-```
-
----
-
-## 7. Start Simulator
-
-```bash
-python ml/simulator/simulator.py
-```
-
----
-
-# Final Deliverables
-
-At the completion of this module, the Telemetry Service provides:
-
-- MQTT → Kafka → TimescaleDB ingestion pipeline
-- Real-time WebSocket streaming
-- Telemetry persistence
-- Charging session management
-- GPS location tracking
-- Historical telemetry queries
-- Time-series aggregation APIs
-- REST APIs for telemetry, charging, battery, and location
-- TimescaleDB optimized for high-frequency IoT data

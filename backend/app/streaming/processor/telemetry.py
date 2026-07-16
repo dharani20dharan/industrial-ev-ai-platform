@@ -5,12 +5,14 @@ from dateutil.parser import isoparse
 
 from app.db.session import AsyncSessionLocal
 from app.repositories.domain import (
-    TelemetryRepository, 
-    BatteryRepository, 
-    LocationRepository, 
-    ChargingRepository
+    TelemetryRepository,
+    BatteryRepository,
+    LocationRepository,
+    ChargingRepository,
+    AlertRepository
 )
-from app.models.domain import TelemetryRecord, BatteryRecord, LocationHistory, ChargingSession
+from app.models.domain import TelemetryRecord, BatteryRecord, LocationHistory, ChargingSession , AlertRecord
+from app.streaming.websocket.adapter import kafka_to_ws_broadcaster
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.WARNING)
@@ -96,7 +98,7 @@ class TelemetryProcessor:
         payload = event_envelope.get("payload", {})
         vehicle_id = event_envelope.get("vehicle_id", payload.get("vehicle_id", "UNKNOWN"))
         ts = self._parse_timestamp(payload.get("timestamp"))
-        
+
         charger_id = payload.get("charger_id")
         connector_type = payload.get("connector_type", "NONE")
 
@@ -114,3 +116,41 @@ class TelemetryProcessor:
             async with AsyncSessionLocal() as session:
                 repo = ChargingRepository(session)
                 await repo.create_session(record)
+
+    async def process_alerts(self, topic: str, event_envelope: Dict[str, Any]) -> None:
+            """Processes 'ev.alerts' diagnostic streams, pushes live to WebSockets, and logs to hypertable."""
+            payload = event_envelope.get("payload", {})
+            vehicle_id = event_envelope.get("vehicle_id", payload.get("vehicle_id", "UNKNOWN"))
+            ts = self._parse_timestamp(payload.get("timestamp"))
+
+            logger.warning(f"[ALERT ENGINE] Intercepted system event fault payload for vehicle {vehicle_id}")
+
+            # Parse from the AlertsPayload structural fields
+            record = AlertRecord(
+                vehicle_id=vehicle_id,
+                timestamp=ts,
+                severity=payload.get("severity", "INFO"),
+                alert_type=payload.get("alert_code", "GEN_ERR"),
+                description=payload.get("description", "Unhandled internal system status anomaly."),
+                resolved=False
+            )
+
+            # Route A: High-performance async database safe persistence
+            async with AsyncSessionLocal() as session:
+                repo = AlertRepository(session)
+                await repo.insert(record)
+
+            # Route B: Direct visual broadcast frame to active web sockets UI clients
+            # ADD THIS BLOCK:
+            # Route B: Direct visual broadcast frame to active web sockets UI clients
+            await kafka_to_ws_broadcaster(
+                topic="ev.alerts",
+                payload={
+                    "vehicle_id": vehicle_id,
+                    "timestamp": ts.isoformat(),
+                    "severity": record.severity,
+                    "alert_type": record.alert_type,
+                    "description": record.description,
+                    "resolved": record.resolved
+                }
+            )

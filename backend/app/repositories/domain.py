@@ -4,7 +4,7 @@ from sqlalchemy import select, desc, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.sql import text
 
-from app.models.domain import TelemetryRecord, BatteryRecord, LocationHistory, ChargingSession
+from app.models.domain import TelemetryRecord, BatteryRecord, LocationHistory, ChargingSession , AlertRecord
 
 class TelemetryRepository:
     def __init__(self, session: AsyncSession):
@@ -24,7 +24,7 @@ class TelemetryRepository:
     async def timeseries_aggregation(self, vehicle_id: str, interval: str = "1 minute", limit: int = 24) -> List[Dict[str, Any]]:
         """Uses TimescaleDB's native time_bucket function to aggregate data efficiently."""
         query = text("""
-            SELECT 
+            SELECT
                 time_bucket(CAST(CAST(:bucket_interval AS TEXT) AS INTERVAL), timestamp) AS time_bucket,
                 AVG(voltage) AS avg_speed,
                 MAX(temperature) AS max_motor_temp,
@@ -35,25 +35,25 @@ class TelemetryRepository:
             ORDER BY time_bucket DESC
             LIMIT :limit;
         """)
-        
+
         result = await self.session.execute(
-            query, 
+            query,
             {
                 "bucket_interval": str(interval),
-                "vehicle_id": str(vehicle_id), 
+                "vehicle_id": str(vehicle_id),
                 "limit": int(limit)
             }
         )
-        
+
         return [
             {
-                "time": row[0].isoformat() if hasattr(row[0], "isoformat") else str(row[0]), 
-                "avg_speed": round(row[1], 2) if row[1] is not None else 0.0, 
+                "time": row[0].isoformat() if hasattr(row[0], "isoformat") else str(row[0]),
+                "avg_speed": round(row[1], 2) if row[1] is not None else 0.0,
                 "max_temp": round(row[2], 2) if row[2] is not None else 0.0
-            } 
+            }
             for row in result.fetchall()
         ]
-    
+
     async def history(self, vehicle_id: str, start_time: datetime, end_time: datetime, limit: int = 100) -> List[TelemetryRecord]:
         """Retrieves raw telemetry history lines within an explicit time window."""
         stmt = (
@@ -123,7 +123,7 @@ class LocationRepository:
         )
         result = await self.session.execute(stmt)
         return list(result.scalars().all())
-    
+
 
 class ChargingRepository:
     def __init__(self, session: AsyncSession):
@@ -144,7 +144,7 @@ class ChargingRepository:
         )
         await self.session.execute(stmt)
         await self.session.commit()
-        
+
         # Retrieve the updated model record cleanly
         fetch_stmt = select(ChargingSession).where(ChargingSession.id == session_id)
         result = await self.session.execute(fetch_stmt)
@@ -159,3 +159,23 @@ class ChargingRepository:
         )
         result = await self.session.execute(stmt)
         return list(result.scalars().all())
+
+class AlertRepository:
+    def __init__(self, session: AsyncSession):
+        self.session = session
+
+    async def insert(self, record: AlertRecord) -> None:
+        """High-speed async insert for structured system alerts."""
+        self.session.add(record)
+        await self.session.commit()
+
+    async def get_active_alerts(self, limit: int = 50) -> List[AlertRecord]:
+        """Retrieves currently unresolved critical warnings and failures across the ecosystem."""
+        stmt = (
+            select(AlertRecord)
+            .where(AlertRecord.resolved == False)
+            .order_by(desc(AlertRecord.timestamp))
+            .limit(limit)
+        )
+        result = await self.session.execute(stmt)
+        return result.scalars().all()

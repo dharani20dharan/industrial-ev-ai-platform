@@ -2,6 +2,7 @@ import uuid
 from datetime import datetime
 from sqlalchemy import Column, String, Float, DateTime, Integer, JSON, Boolean
 from sqlalchemy.orm import declarative_base
+from sqlalchemy.dialects.postgresql import UUID  # Required for the UUID column type
 
 Base = declarative_base()
 
@@ -16,7 +17,7 @@ class TelemetryRecord(Base):
     id = Column(Integer, primary_key=True, autoincrement=True)
     timestamp = Column(DateTime(timezone=True), primary_key=True, default=datetime.utcnow)
     vehicle_id = Column(String(50), nullable=False, index=True)
-    
+
     # Real kinematic signatures
     speed_kph = Column(Float, nullable=False, name="voltage")  # Map to existing DB column shapes
     odometer_km = Column(Float, nullable=False, name="current")
@@ -64,3 +65,16 @@ class ChargingSession(Base):
     energy_consumed_kwh = Column(Float, nullable=True, default=0.0)
     starting_soc = Column(Float, nullable=True, default=0.0)
     ending_soc = Column(Float, nullable=True)
+
+class AlertRecord(Base):
+    __tablename__ = "alert_records"
+
+    # TimescaleDB requires the time column (timestamp) to be part of the primary key configuration
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    timestamp = Column(DateTime(timezone=True), primary_key=True, default=datetime.utcnow)
+
+    vehicle_id = Column(String(50), nullable=False, index=True)
+    severity = Column(String(20), nullable=False, index=True)  # CRITICAL, WARNING, INFO
+    alert_type = Column(String(50), nullable=False, index=True)  # THERMAL_RUNAWAY, OVER_VOLTAGE, ANOMALY
+    description = Column(String(255), nullable=False)
+    resolved = Column(Boolean, default=False, nullable=False)

@@ -9,21 +9,21 @@ class BasePayload(BaseModel):
 
 class TelemetryPayload(BasePayload):
     """Kinematic data mapping simulator inputs to system targets with safe defaults."""
-    speed_kph: float = Field(default=0.0, validation_alias="speed", ge=0, le=300)
+    speed_kph: float = Field(default=0.0, validation_alias="speed", ge=0, le=2000.0)
     odometer_km: float = Field(default=0.0, validation_alias="odometer", ge=0)
-    # FIX: Increased upper boundary check to 500 to allow thermal anomaly metrics through
-    motor_temperature_c: float = Field(default=25.0, validation_alias="ambient_temperature", ge=-40, le=500) 
+    # FIX: Increased upper boundary check to 5000.0 to allow extreme thermal anomalies through
+    motor_temperature_c: float = Field(default=25.0, validation_alias="ambient_temperature", ge=-40, le=5000.0)
     torque_nm: float = Field(default=0.0, validation_alias="power_output")
     inverter_efficiency: float = Field(default=0.94, ge=0, le=1)
-    
+
 class BatteryPayload(BasePayload):
     """Electro-chemical stats providing field transformations for native simulator outputs."""
     state_of_charge_pct: float = Field(default=0.0, validation_alias="soc", ge=0, le=100)
     state_of_health_pct: float = Field(default=100.0, validation_alias="soh", ge=0, le=100)
     voltage: float = Field(default=0.0, ge=0, le=1000)
     current_amps: float = Field(default=0.0, validation_alias="current")
-    # FIX: Relax constraints to allow simulated thermal anomalies (>100) without dropping the packet
-    cell_temperature_max_c: float = Field(default=25.0, validation_alias="cell_temperature", ge=-40, le=300)
+    # FIX: Relax constraints further to ensure packets aren't dropped during runtime anomalies
+    cell_temperature_max_c: float = Field(default=25.0, validation_alias="cell_temperature", ge=-40, le=5000.0)
     internal_resistance_ohm: float = Field(default=0.01, validation_alias="internal_resistance", ge=0)
 
 class LocationPayload(BasePayload):
@@ -32,7 +32,7 @@ class LocationPayload(BasePayload):
     altitude_m: Optional[float] = Field(default=1609.0, ge=-500, le=9000)
     heading_deg: Optional[float] = Field(default=0.0, ge=0, le=360)
     # FIX: Change to str to cleanly capture status strings like '3D_FIX'
-    gps_fix_quality: str = Field(default="UNKNOWN") 
+    gps_fix_quality: str = Field(default="UNKNOWN")
 
 class ChargingPayload(BasePayload):
     # FIX: Make Optional to safely handle payloads when the EV is discharging instead of charging

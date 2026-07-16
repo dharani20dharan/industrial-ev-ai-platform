@@ -5,7 +5,6 @@ import logging
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
 
-# Windows proactor event loop fix for aiomqtt socket polling
 if sys.platform.lower() == "win32" or os.name.lower() == "nt":
     from asyncio import set_event_loop_policy, WindowsSelectorEventLoopPolicy
     set_event_loop_policy(WindowsSelectorEventLoopPolicy())
@@ -16,65 +15,59 @@ from app.streaming.mqtt.client import MqttIngestionClient
 from app.streaming.producers.client import KafkaEventProducer
 from app.streaming.consumers.client import KafkaEventConsumer
 from app.streaming.websocket.adapter import kafka_to_ws_broadcaster
+from app.streaming.processor.telemetry import TelemetryProcessor
+from app.api.v1.rest_routes import router as rest_router
+# FIX: Unified integration of legacy telemetry router endpoints alongside base routes
+from app.api.v1.endpoints.telemetry import router as live_telemetry_router
 
 from app.api.health import router as health_router
 from app.api.ws_routes import router as ws_router
-# Windows proactor event loop fix for aiomqtt socket polling
-if sys.platform.lower() == "win32" or os.name.lower() == "nt":
-    from asyncio import set_event_loop_policy, WindowsSelectorEventLoopPolicy
-    set_event_loop_policy(WindowsSelectorEventLoopPolicy())
 
-
-# Initialize early logging
 setup_logging()
-logger = logging.getLogger(__name__)
+# Force clean warning filters over platform launch sequence
+logging.getLogger("paho").setLevel(logging.WARNING)
+logging.getLogger("kafka").setLevel(logging.WARNING)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Manages the startup and graceful shutdown of all async infrastructure clients."""
-    logger.info("Initializing platform infrastructure...")
-
-    # 1. Instantiate Clients
     mqtt_client = MqttIngestionClient()
     kafka_producer = KafkaEventProducer()
     kafka_consumer = KafkaEventConsumer()
 
-    # 2. Register to Dependency Injection Container
     container.register_mqtt_client(mqtt_client)
     container.register_kafka_producer(kafka_producer)
     container.register_kafka_consumer(kafka_consumer)
 
-    # 3. Wire Callbacks (from Phase 6)
-    kafka_consumer.register_callback("telemetry.raw", kafka_to_ws_broadcaster)
-    kafka_consumer.register_callback("alerts", kafka_to_ws_broadcaster)
+    telemetry_processor = TelemetryProcessor()
 
-    # 4. Start Downstream First (Kafka)
+    # Domain routing bindings
+    kafka_consumer.register_callback("ev.telemetry", kafka_to_ws_broadcaster)
+    kafka_consumer.register_callback("ev.telemetry", telemetry_processor.process_kinematics)
+
+    kafka_consumer.register_callback("ev.battery", kafka_to_ws_broadcaster)
+    kafka_consumer.register_callback("ev.battery", telemetry_processor.process_battery)
+
+    kafka_consumer.register_callback("ev.location", kafka_to_ws_broadcaster)
+    kafka_consumer.register_callback("ev.location", telemetry_processor.process_location)
+
+    kafka_consumer.register_callback("ev.charging", kafka_to_ws_broadcaster)
+    kafka_consumer.register_callback("ev.charging", telemetry_processor.process_charging)
+
     await kafka_producer.start()
     await kafka_consumer.start()
-    
-    # 5. Start Upstream Last (MQTT Ingestion)
     await mqtt_client.start()
     
-    logger.info("Platform streaming layer fully operational.")
+    print(">>> FastAPI Enterprise Platform Streaming Engine Running <<<")
+    yield 
     
-    yield  # Application runs here
-
-    logger.info("Initiating graceful shutdown sequence...")
-    
-    # 6. Stop Upstream First (Halt new ingestion)
     await mqtt_client.stop()
-    
-    # 7. Stop Consumers (Halt internal processing)
     await kafka_consumer.stop()
-    
-    # 8. Stop Downstream Last (Flush pending producer batches)
     await kafka_producer.stop()
-    
-    logger.info("Shutdown complete. All connections closed safely.")
 
-# Initialize the FastAPI application
-app = FastAPI(title="Industrial EV AI Platform - Streaming Layer", lifespan=lifespan)
+app = FastAPI(title="Industrial EV AI Platform", lifespan=lifespan)
 
-# Include core routers
 app.include_router(health_router)
 app.include_router(ws_router)
+app.include_router(rest_router)
+# FIX: Added live router to match endpoint parameters hierarchy
+app.include_router(live_telemetry_router, prefix="/api/v1")

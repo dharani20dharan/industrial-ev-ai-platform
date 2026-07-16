@@ -20,8 +20,9 @@ class KafkaSettings(BaseSettings):
 
 class AppSettings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", env_nested_delimiter="__", extra="ignore")
+    database_url: str = "postgresql+asyncpg://ev_admin:ev_password@localhost:5432/ev_platform"
     environment: str = Field(default="development")
-    debug: bool = Field(default=True)
+    debug: bool = Field(default=False)
     mqtt: MqttSettings = MqttSettings()
     kafka: KafkaSettings = KafkaSettings()
 

@@ -25,6 +25,8 @@ class JsonFormatter(logging.Formatter):
         return json.dumps(log_data)
 
 
+import os
+
 def setup_logging() -> None:
     """Initializes global logging configurations."""
     root_logger = logging.getLogger()
@@ -34,16 +36,23 @@ def setup_logging() -> None:
         
     handler = logging.StreamHandler(sys.stdout)
     
+    # Check for custom LOG_LEVEL env var first
+    env_log_level = os.getenv("LOG_LEVEL")
+    if env_log_level:
+        level = getattr(logging, env_log_level.upper(), logging.INFO)
+    else:
+        level = logging.DEBUG if getattr(settings, "debug", False) else logging.INFO
+    
     if hasattr(settings, "environment") and settings.environment.lower() == "production":
         handler.setFormatter(JsonFormatter())
-        root_logger.setLevel(logging.INFO)
+        root_logger.setLevel(level)
     else:
         formatter = logging.Formatter(
             fmt="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
             datefmt="%Y-%m-%d %H:%M:%S"
         )
         handler.setFormatter(formatter)
-        root_logger.setLevel(logging.DEBUG if getattr(settings, "debug", True) else logging.INFO)
+        root_logger.setLevel(level)
         
     root_logger.addHandler(handler)
     

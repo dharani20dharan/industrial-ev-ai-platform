@@ -13,21 +13,21 @@ ConsumerCallback = Callable[[str, Dict[str, Any]], Awaitable[None]]
 
 class KafkaEventConsumer:
     """Async Kafka consumer framework with an internal callback router."""
-    
-    # The fixed list of topics our backend is allowed to consume
-    ALLOWED_TOPICS = [
-        "telemetry.raw", 
-        "telemetry.processed", 
-        "predictions", 
-        "alerts", 
-        "maintenance", 
-        "supplychain", 
-        "sustainability"
-    ]
 
     def __init__(self) -> None:
-        self.consumer: Optional[AIOKafkaConsumer] = None
-        self._consume_task: Optional[asyncio.Task] = None
+        self.consumer = None
+        self._consume_task = None
+        
+        # UNIFIED NAME: Changed from self.valid_topics to self.ALLOWED_TOPICS
+        self.ALLOWED_TOPICS = {
+            "ev.telemetry",
+            "ev.battery",
+            "ev.location",
+            "ev.charging",
+            "ev.status",
+            "ev.alerts",
+            "ev.diagnostics"
+        }
         
         # Internal router mapping Kafka topics to a list of registered async callbacks
         self._callbacks: Dict[str, List[ConsumerCallback]] = {
@@ -47,6 +47,7 @@ class KafkaEventConsumer:
         """Initializes the Kafka consumer and begins the listening loop."""
         logger.info("Initializing Kafka consumer framework...")
         
+        # *self.ALLOWED_TOPICS safely unpacks the set values as independent string arguments
         self.consumer = AIOKafkaConsumer(
             *self.ALLOWED_TOPICS,
             bootstrap_servers=settings.kafka.bootstrap_servers,

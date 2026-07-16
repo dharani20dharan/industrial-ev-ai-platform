@@ -186,3 +186,313 @@ python infrastructure/kafka/mqtt_kafka_bridge.py
 python ml/simulator/simulator.py
 
 ```
+
+
+
+
+
+
+
+
+
+# Telemetry & Time-Series Service
+
+The **Telemetry & Time-Series Service** is responsible for ingesting, processing, storing, and serving real-time Industrial EV telemetry data.
+
+It forms the core data pipeline between the vehicle simulator, messaging infrastructure, database, and frontend dashboard. The service consumes validated telemetry events from Kafka, persists them into **TimescaleDB**, and exposes both REST APIs and WebSocket streams for real-time and historical analytics.
+
+---
+
+# Responsibilities
+
+- Vehicle telemetry ingestion
+- Battery metric persistence
+- GPS location tracking
+- Charging session management
+- Historical telemetry retrieval
+- Time-series aggregation
+- Real-time WebSocket streaming
+
+---
+
+# Architecture
+
+```
+                          VEHICLE SIMULATOR
+                                 │
+                                 ▼
+                          MQTT Broker
+                                 │
+                                 ▼
+                     Backend Streaming Layer
+               (Validation → Normalization)
+                                 │
+                                 ▼
+                            Kafka Broker
+                                 │
+              ┌──────────────────┴──────────────────┐
+              │                                     │
+              ▼                                     ▼
+      WebSocket Broadcast                 Telemetry Processor
+                                                    │
+                                                    ▼
+                                             Service Layer
+                                                    │
+                                                    ▼
+                                             Repository Layer
+                                                    │
+                                                    ▼
+                                               TimescaleDB
+                                                    │
+                                                    ▼
+                                               REST APIs
+                                                    │
+                                                    ▼
+                                              Frontend UI
+```
+
+---
+
+# Data Flow
+
+```
+Simulator
+    ↓
+MQTT
+    ↓
+Kafka
+    ↓
+Telemetry Processor
+    ↓
+Telemetry Service
+    ↓
+Repository
+    ↓
+TimescaleDB
+    ↓
+REST APIs
+```
+
+Live updates are simultaneously broadcast through WebSockets:
+
+```
+Kafka Consumer
+      │
+      ├────────► WebSocket Clients
+      │
+      └────────► Database Persistence
+```
+
+---
+
+# API Endpoints
+
+## Telemetry
+
+| Method | Endpoint | Description |
+|---------|----------|-------------|
+| POST | `/api/v1/telemetry` | Manual telemetry ingestion (testing/debugging). |
+| GET | `/api/v1/telemetry/latest` | Returns the latest telemetry for a vehicle. |
+| GET | `/api/v1/telemetry/history` | Returns historical telemetry records. |
+| GET | `/api/v1/telemetry/timeseries` | Returns aggregated time-series data for visualization. |
+
+---
+
+## Battery
+
+| Method | Endpoint | Description |
+|---------|----------|-------------|
+| GET | `/api/v1/battery/latest` | Returns the latest battery metrics for a vehicle. |
+
+---
+
+## Charging
+
+| Method | Endpoint | Description |
+|---------|----------|-------------|
+| POST | `/api/v1/charging/session` | Starts a charging session. |
+| PATCH | `/api/v1/charging/session/{session_id}` | Completes or updates a charging session. |
+| GET | `/api/v1/charging/history` | Returns charging history. |
+
+---
+
+## Location
+
+| Method | Endpoint | Description |
+|---------|----------|-------------|
+| POST | `/api/v1/location` | Manual location ingestion (testing/debugging). |
+| GET | `/api/v1/location/latest` | Returns the latest GPS location. |
+| GET | `/api/v1/location/history` | Returns historical GPS coordinates. |
+
+---
+
+## WebSocket
+
+| Endpoint | Description |
+|----------|-------------|
+| `WS /api/v1/ws/telemetry` | Streams live telemetry events to connected dashboard clients. |
+
+---
+
+# Kafka Topics
+
+The Telemetry Service consumes the following Kafka topics:
+
+| Topic | Description |
+|--------|-------------|
+| `ev.telemetry` | Vehicle telemetry |
+| `ev.battery` | Battery metrics |
+| `ev.location` | GPS location |
+| `ev.charging` | Charging session events |
+
+---
+
+# Database
+
+The service stores data in **TimescaleDB**.
+
+### Hypertables
+
+- `telemetry`
+- `location_history`
+
+### Relational Tables
+
+- `charging_sessions`
+
+---
+
+# Service Components
+
+```
+telemetry/
+│
+├── api/
+├── models/
+├── schemas/
+├── repository/
+├── services/
+├── processors/
+└── validators/
+```
+
+---
+
+# Processing Pipeline
+
+```
+Kafka Consumer
+        │
+        ▼
+Telemetry Processor
+        │
+        ▼
+Telemetry Service
+        │
+        ▼
+Repository Layer
+        │
+        ▼
+TimescaleDB
+```
+
+---
+
+# Repository Responsibilities
+
+### Telemetry Repository
+
+- Insert telemetry
+- Bulk insert telemetry
+- Latest telemetry
+- Historical telemetry
+- Time-series aggregation
+
+### Charging Repository
+
+- Create charging session
+- Update charging session
+- Retrieve charging history
+
+### Location Repository
+
+- Store GPS coordinates
+- Retrieve latest location
+- Retrieve location history
+
+---
+
+# Running the Service
+
+## 1. Start Infrastructure
+
+```bash
+cd infrastructure
+docker compose up -d
+```
+
+---
+
+## 2. Initialize TimescaleDB
+
+```bash
+cd backend
+
+python -m app.db.init_timescale
+```
+
+---
+
+## 3. Start Backend
+
+```bash
+uvicorn app.main:app --reload
+```
+
+---
+
+## 4. Start MQTT → Kafka Bridge
+
+```bash
+python infrastructure/kafka/mqtt_kafka_bridge.py
+```
+
+---
+
+## 5. Start Database Writer
+
+```bash
+python infrastructure/kafka/consumers/db_writer.py
+```
+
+---
+
+## 6. Start Debug Consumer (Optional)
+
+```bash
+python infrastructure/kafka/consumers/telemetry_consumer.py
+```
+
+---
+
+## 7. Start Simulator
+
+```bash
+python ml/simulator/simulator.py
+```
+
+---
+
+# Final Deliverables
+
+At the completion of this module, the Telemetry Service provides:
+
+- MQTT → Kafka → TimescaleDB ingestion pipeline
+- Real-time WebSocket streaming
+- Telemetry persistence
+- Charging session management
+- GPS location tracking
+- Historical telemetry queries
+- Time-series aggregation APIs
+- REST APIs for telemetry, charging, battery, and location
+- TimescaleDB optimized for high-frequency IoT data

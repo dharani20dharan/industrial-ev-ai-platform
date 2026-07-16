@@ -25,10 +25,12 @@ CREATE INDEX IF NOT EXISTS idx_telemetry_vehicle_timestamp ON telemetry (vehicle
 CREATE TABLE IF NOT EXISTS charging_sessions (
     id SERIAL PRIMARY KEY,
     vehicle_id VARCHAR(50) NOT NULL,
+    charger_id VARCHAR(50),
     start_time TIMESTAMPTZ NOT NULL,
     end_time TIMESTAMPTZ,
-    energy_delivered_kwh DOUBLE PRECISION NOT NULL,
-    starting_soc DOUBLE PRECISION NOT NULL,
+    status VARCHAR(20) NOT NULL DEFAULT 'ACTIVE',
+    energy_consumed_kwh DOUBLE PRECISION DEFAULT 0.0,
+    starting_soc DOUBLE PRECISION DEFAULT 0.0,
     ending_soc DOUBLE PRECISION
 );
 

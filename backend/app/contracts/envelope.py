@@ -1,9 +1,8 @@
 from datetime import datetime, timezone
 from typing import Generic, TypeVar, Optional
 from uuid import UUID, uuid4
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ConfigDict
 
-# Generic Type for payload validation flexibility
 T = TypeVar('T', bound=BaseModel)
 
 class EventEnvelope(BaseModel, Generic[T]):
@@ -19,8 +18,10 @@ class EventEnvelope(BaseModel, Generic[T]):
     
     payload: T = Field(..., description="The concrete domain data model matching the event type")
 
-    class Config:
+    # FIX: Updated old custom encoder blocks to Pydantic V2 model_config structure
+    model_config = ConfigDict(
         json_encoders = {
             datetime: lambda v: v.isoformat(),
             UUID: lambda v: str(v)
         }
+    )

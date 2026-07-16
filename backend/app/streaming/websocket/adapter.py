@@ -3,6 +3,7 @@ from typing import Dict, Any
 from app.streaming.websocket.manager import ws_manager
 
 logger = logging.getLogger(__name__)
+logger.setLevel(logging.WARNING)
 
 async def kafka_to_ws_broadcaster(topic: str, payload: Dict[str, Any]) -> None:
     """

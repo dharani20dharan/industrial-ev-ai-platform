@@ -66,3 +66,32 @@
 .glow-emerald {
   box-shadow: 0 0 20px rgba(16, 185, 129, 0.15);
 }
+
+/* Fix styling context inside leaflet popup component arrays */
+.leaflet-popup-content-wrapper, .leaflet-popup-tip {
+  background: #0f172a !important;
+  color: #f8fafc !important;
+  border: 1px solid #334155 !important;
+  border-radius: 8px !important;
+}
+.leaflet-container a.leaflet-popup-close-button {
+  color: #94a3b8 !important;
+  padding: 4px 6px 0 0 !important;
+}
+
+/* Force compiler tracking for Leaflet DivIcon styles */
+.custom-leaflet-marker {
+  background: transparent !important;
+  border: none !important;
+}
+
+/* Fallback layer guaranteeing visibility for your live map tracking nodes */
+.bg-emerald-400 { background-color: #34d399 !important; }
+.bg-red-500     { background-color: #ef4444 !important; }
+.bg-amber-400   { background-color: #fbbf24 !important; }
+.bg-blue-400    { background-color: #60a5fa !important; }
+
+.ring-emerald-500\/30 { box-shadow: 0 0 0 4px rgba(16, 185, 129, 0.3); }
+.ring-red-500\/50     { box-shadow: 0 0 0 4px rgba(239, 68, 68, 0.5); }
+.ring-amber-500\/30   { box-shadow: 0 0 0 4px rgba(245, 158, 11, 0.3); }
+.ring-blue-500\/30    { box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.3); }

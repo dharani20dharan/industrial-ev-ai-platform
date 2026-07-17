@@ -8,12 +8,14 @@ from datetime import datetime
 try:
     from kafka import KafkaConsumer
 except ImportError:
+    print("Error: 'kafka-python' is not installed. Please run: pip install kafka-python")
     sys.exit(1)
 
 try:
     import psycopg2
     from psycopg2 import pool
 except ImportError:
+    print("Error: 'psycopg2' is not installed. Please run: pip install psycopg2-binary")
     sys.exit(1)
 
 logging.basicConfig(level=logging.WARNING, format="%(asctime)s [%(levelname)s] %(message)s")

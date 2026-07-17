@@ -64,7 +64,8 @@ class TelemetryProcessor:
             voltage=float(payload.get("voltage", 0.0)),
             current_amps=float(payload.get("current_amps", 0.0)),
             cell_temperature_max_c=float(payload.get("cell_temperature_max_c", 0.0)),
-            internal_resistance_ohm=float(payload.get("internal_resistance_ohm", 0.0))
+            internal_resistance_ohm=float(payload.get("internal_resistance_ohm", 0.0)),
+            cycle_count=int(payload.get("cycle_count", 100))
         )
 
         async with AsyncSessionLocal() as session:

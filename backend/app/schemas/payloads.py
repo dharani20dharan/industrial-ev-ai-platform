@@ -25,6 +25,7 @@ class BatteryPayload(BasePayload):
     # FIX: Relax constraints further to ensure packets aren't dropped during runtime anomalies
     cell_temperature_max_c: float = Field(default=25.0, validation_alias="cell_temperature", ge=-40, le=5000.0)
     internal_resistance_ohm: float = Field(default=0.01, validation_alias="internal_resistance", ge=0)
+    cycle_count: int = Field(default=100, validation_alias="cycle_count", ge=0)
 
 class LocationPayload(BasePayload):
     latitude: float = Field(default=39.7392, ge=-90, le=90)

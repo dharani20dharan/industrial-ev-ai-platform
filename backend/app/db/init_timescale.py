@@ -19,6 +19,7 @@ async def init_db():
 
         # Step 2: Convert structural physical logs to partitioned hypertables
         hypertable_queries = [
+            "ALTER TABLE battery_records ADD COLUMN IF NOT EXISTS cycle_count INTEGER DEFAULT 100;",
             "SELECT create_hypertable('telemetry', 'timestamp', if_not_exists => TRUE);",
             "SELECT create_hypertable('battery_records', 'timestamp', if_not_exists => TRUE);",
             "SELECT create_hypertable('location_history', 'timestamp', if_not_exists => TRUE);",

@@ -36,6 +36,7 @@ class BatteryRecord(Base):
     current_amps = Column(Float, nullable=False)
     cell_temperature_max_c = Column(Float, nullable=False)
     internal_resistance_ohm = Column(Float, nullable=False)
+    cycle_count = Column(Integer, nullable=False, default=100)
 
 class LocationHistory(Base):
     __tablename__ = "location_history"

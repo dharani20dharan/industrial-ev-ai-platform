@@ -1,5 +1,9 @@
-from fastapi import APIRouter, WebSocket, WebSocketDisconnect, Query, HTTPException
+from fastapi import APIRouter, WebSocket, WebSocketDisconnect, Query, HTTPException, Depends
 from ....schemas.telemetry import BatteryHealthResponse
+from sqlalchemy.ext.asyncio import AsyncSession
+from app.db.session import get_db_session
+from app.models.domain import BatteryRecord
+from sqlalchemy import select
 import asyncio
 import random
 import json
@@ -14,58 +18,79 @@ MOCK_BATTERY_HEALTH = {
 }
 
 @router.get("/battery/status", response_model=BatteryHealthResponse)
-def get_battery_status(vehicle_id: str = Query(..., description="ID of the EV vehicle asset")):
-    if vehicle_id not in MOCK_BATTERY_HEALTH:
-        raise HTTPException(status_code=404, detail="Battery status not found for vehicle")
-    return MOCK_BATTERY_HEALTH[vehicle_id]
+async def get_battery_status(
+    vehicle_id: str = Query(..., description="ID of the EV vehicle asset"),
+    session: AsyncSession = Depends(get_db_session)
+):
+    from app.services.ml import get_battery_predictor, prepare_features_from_records
+    
+    # 1. Fetch latest 20 database entries to compile history for rolling features
+    stmt = select(BatteryRecord).where(BatteryRecord.vehicle_id == vehicle_id).order_by(BatteryRecord.timestamp.desc()).limit(20)
+    result = await session.execute(stmt)
+    records = result.scalars().all()
+    
+    if records:
+        features = prepare_features_from_records(records)
+        predictor = get_battery_predictor()
+        
+        soh_res = predictor.predict_soh(features)
+        rul_res = predictor.predict_rul(features)
+        
+        return {
+            "vehicle_id": vehicle_id,
+            "capacity_fade": round(120.0 - features['capacity_ah'], 2),
+            "cycle_count": int(features['cycle']),
+            "state_of_health": soh_res['soh_percent'],
+            "remaining_useful_life": int(rul_res['rul_cycles'])
+        }
+        
+    # 2. Fallback to mock data if no DB records found
+    if vehicle_id in MOCK_BATTERY_HEALTH:
+        return MOCK_BATTERY_HEALTH[vehicle_id]
+        
+    raise HTTPException(status_code=404, detail="Battery status not found for vehicle")
 
 @router.post("/predict/rul")
 def predict_rul(payload: dict):
-    # Mock ML inference request utilizing temperature, voltage, cycle profiles
-    voltage = payload.get("voltage", 380)
-    temperature = payload.get("temperature", 35)
-    cycle_count = payload.get("cycle_count", 100)
-    
-    # Simple linear degradation simulation
-    base_life = 1500
-    degradation = (cycle_count * 1.1) + (temperature * 2.5) + (400 - voltage)
-    estimated_rul = max(0, int(base_life - degradation))
-    
+    from app.services.ml import get_battery_predictor, prepare_features_from_records
+    features = prepare_features_from_records([], payload)
+    predictor = get_battery_predictor()
+    res = predictor.predict_rul(features)
     return {
-        "predicted_rul_cycles": estimated_rul,
-        "confidence_interval": [estimated_rul - 50, estimated_rul + 50],
-        "model_version": "xgboost-battery-rul-v1.0"
+        "predicted_rul_cycles": int(res['rul_cycles']),
+        "confidence_interval": [max(0, int(res['rul_cycles']) - 50), int(res['rul_cycles']) + 50],
+        "model_version": "xgboost-battery-rul-v1.0",
+        "urgency": res['urgency'],
+        "action": res['action']
     }
 
 @router.post("/predict/soh")
 def predict_soh(payload: dict):
-    capacity = payload.get("capacity", 120.0)
-    nominal_capacity = payload.get("nominal_capacity", 120.0)
-    
-    soh = (capacity / nominal_capacity) * 100.0
+    from app.services.ml import get_battery_predictor, prepare_features_from_records
+    features = prepare_features_from_records([], payload)
+    predictor = get_battery_predictor()
+    res = predictor.predict_soh(features)
     return {
-        "state_of_health": round(soh, 2),
-        "capacity_fade_ah": round(nominal_capacity - capacity, 2),
-        "model_version": "regression-degradation-soh-v1.0"
+        "state_of_health": res['soh_percent'],
+        "capacity_fade_ah": round(120.0 - features['capacity_ah'], 2),
+        "health_status": res['health_status'],
+        "recommendation": res['recommendation'],
+        "model_version": "xgboost-battery-soh-v1.0"
     }
 
 @router.post("/predict/anomaly")
 def predict_anomaly(payload: dict):
-    temperature = payload.get("temperature", 25.0)
-    voltage = payload.get("voltage", 390.0)
-    
-    # Anomaly indicator: if temp exceeds threshold or voltage is abnormally low
-    is_anomaly = False
-    anomaly_score = 0.05
-    
-    if temperature > 45.0 or voltage < 320.0:
-        is_anomaly = True
-        anomaly_score = 0.89 + (temperature * 0.002)
-        
+    from app.services.ml import get_anomaly_detector, prepare_features_from_records
+    features = prepare_features_from_records([], payload)
+    detector = get_anomaly_detector()
+    res = detector.predict(features)
     return {
-        "is_anomaly": is_anomaly,
-        "anomaly_score": round(anomaly_score, 3),
-        "anomalous_features": ["temperature" if temperature > 45.0 else None, "voltage" if voltage < 320.0 else None],
+        "is_anomaly": res['is_anomaly'],
+        "anomaly_score": res['anomaly_score'],
+        "severity": res['severity'],
+        "anomaly_types": res['anomaly_types'],
+        "alerts": res['alerts'],
+        "recommendations": res['recommendations'],
         "model_version": "isolation-forest-anomaly-v1.0"
     }
 
@@ -74,7 +99,6 @@ async def websocket_endpoint(websocket: WebSocket, vehicle_id: str):
     await websocket.accept()
     try:
         while True:
-            # Generate simulated live streaming data for WebSockets
             data = {
                 "vehicle_id": vehicle_id,
                 "timestamp": str(asyncio.get_event_loop().time()),

@@ -17,8 +17,7 @@ from app.streaming.consumers.client import KafkaEventConsumer
 from app.streaming.websocket.adapter import kafka_to_ws_broadcaster
 from app.streaming.processor.telemetry import TelemetryProcessor
 from app.api.v1.rest_routes import router as rest_router
-# FIX: Unified integration of legacy telemetry router endpoints alongside base routes
-from app.api.v1.endpoints.telemetry import router as live_telemetry_router
+from app.api.v1.api import api_router as v1_api_router
 
 from app.api.health import router as health_router
 from app.api.ws_routes import router as ws_router
@@ -59,21 +58,40 @@ async def lifespan(app: FastAPI):
         callback=telemetry_processor.process_alerts
     )
 
-    await kafka_producer.start()
-    await kafka_consumer.start()
-    await mqtt_client.start()
+    try:
+        await kafka_producer.start()
+    except Exception as e:
+        print(f"[WARN] Failed to start Kafka Producer (broker offline): {e}")
+        
+    try:
+        await kafka_consumer.start()
+    except Exception as e:
+        print(f"[WARN] Failed to start Kafka Consumer (broker offline): {e}")
+        
+    try:
+        await mqtt_client.start()
+    except Exception as e:
+        print(f"[WARN] Failed to start MQTT Client (broker offline): {e}")
 
-    print(">>> FastAPI Enterprise Platform Streaming Engine Running <<<")
+    print(">>> FastAPI Enterprise Platform Streaming Engine Running (Offline Fallbacks Active) <<<")
     yield
 
-    await mqtt_client.stop()
-    await kafka_consumer.stop()
-    await kafka_producer.stop()
+    try:
+        await mqtt_client.stop()
+    except Exception:
+        pass
+    try:
+        await kafka_consumer.stop()
+    except Exception:
+        pass
+    try:
+        await kafka_producer.stop()
+    except Exception:
+        pass
 
 app = FastAPI(title="Industrial EV AI Platform", lifespan=lifespan)
 
 app.include_router(health_router)
 app.include_router(ws_router)
 app.include_router(rest_router)
-# FIX: Added live router to match endpoint parameters hierarchy
-app.include_router(live_telemetry_router, prefix="/api/v1")
+app.include_router(v1_api_router, prefix="/api/v1")

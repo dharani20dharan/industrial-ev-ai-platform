@@ -156,3 +156,16 @@ data/
 # OS metadata
 .DS_Store
 Thumbs.db
+
+# Raw downloaded datasets & zip/tarballs
+ml/5.+Battery+Data+Set/
+*.mat
+*.zip
+*.tar.gz
+*.tgz
+*.rar
+
+# Guideline PDFs and Word Docs (Internal Hackathon assets)
+*.pdf
+*.docx
+*.doc

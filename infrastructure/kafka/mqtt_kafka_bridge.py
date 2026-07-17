@@ -7,11 +7,13 @@ import time
 try:
     import paho.mqtt.client as mqtt
 except ImportError:
+    print("Error: 'paho-mqtt' is not installed. Please run: pip install paho-mqtt")
     sys.exit(1)
 
 try:
     from kafka import KafkaProducer
 except ImportError:
+    print("Error: 'kafka-python' is not installed. Please run: pip install kafka-python")
     sys.exit(1)
 
 # Keep log level tight to avoid console flood

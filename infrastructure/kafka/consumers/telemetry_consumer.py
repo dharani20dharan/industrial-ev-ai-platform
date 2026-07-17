@@ -1,5 +1,6 @@
 import json
 import os
+import sys
 import time
 
 try:
@@ -9,39 +10,34 @@ except ImportError:
 
 def run_consumer():
     if KafkaConsumer is None:
-        print("[KAFKA DRY-RUN] Python kafka-python package not installed. Skip network connection.")
+        print("Error: kafka-python package not installed.")
         return
 
     bootstrap_servers = os.getenv("KAFKA_BOOTSTRAP_SERVERS", "localhost:9092")
-    topic = os.getenv("KAFKA_TOPIC", "telemetry.raw")
-
-    print(f"Connecting to Kafka topic '{topic}' at {bootstrap_servers}...")
+    topic_pattern = r"ev\..*"
 
     consumer = None
     retries = 5
     while retries > 0:
         try:
             consumer = KafkaConsumer(
-                topic,
                 bootstrap_servers=bootstrap_servers,
                 auto_offset_reset='latest',
-                value_deserializer=lambda m: json.loads(m.decode('utf-8'))
+                value_deserializer=lambda m: json.loads(m.decode('utf-8')),
+                group_id="infrastructure_telemetry_debug_group"
             )
-            print("Successfully connected to Kafka!")
+            consumer.subscribe(pattern=topic_pattern)
             break
         except Exception as e:
             retries -= 1
-            print(f"Kafka not ready, retrying in 5 seconds... ({retries} attempts left). Error: {e}")
             time.sleep(5)
 
     if not consumer:
-        print("Failed to connect to Kafka. Exiting.")
-        return
+        sys.exit(1)
 
-    print("Waiting for messages...")
+    print("=== LIVE TELEMETRY LOG BUS RUNNING ===")
     for message in consumer:
-        data = message.value
-        print(f"Received telemetry event: {data}")
+        print(f"[{message.topic}] Vehicle: {message.value.get('vehicle_id')} | Time: {message.value.get('timestamp')}")
 
 if __name__ == "__main__":
     run_consumer()

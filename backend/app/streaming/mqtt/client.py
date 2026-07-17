@@ -166,7 +166,7 @@ class MqttIngestionClient:
             logger.error("MQTT broker connection dropped or encountered a network error.", exc_info=True)
 
     def _process_message(self, client: aiomqtt.Client, message: aiomqtt.Message) -> None:
-        """Routes incoming raw binary messages through validation, normalization, and publish tiers."""
+        """Routes incoming raw binary messages through validation, normalization, and domain streams."""
         topic = str(message.topic)
         payload_bytes = message.payload
         
@@ -177,10 +177,12 @@ class MqttIngestionClient:
         validated_model = validate_raw_payload(topic, payload_bytes)
         
         if validated_model:
-            # 2. Normalize metadata envelope packaging
+            # 2. Normalize and extract the target domain channel type
             envelope = normalize_to_envelope(topic, validated_model)
-            target_kafka_topic = MQTT_TO_KAFKA_ROUTE.get(topic, "telemetry.raw")
             
-            # 3. Stream to Kafka Event Bus asynchronously without delaying the network line
+            # DYNAMIC ROUTING FIX: Grab the exact destination from the normalizer mapping
+            target_kafka_topic = envelope.event_type
+            
+            # 3. Stream asynchronously straight onto the specific Kafka Topic Bus line
             kafka_producer = container.kafka_producer
             asyncio.create_task(kafka_producer.publish(target_kafka_topic, envelope))

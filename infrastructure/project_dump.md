@@ -13,10 +13,6 @@ infrastructure
 │   └── mqtt_kafka_bridge.py
 ├── mosquitto
 │   └── mosquitto.conf
-├── neo4j
-│   ├── init_db.py
-│   └── init_graph.cypher
-├── project_dump.md
 └── timescaledb
     └── init.sql
 ```
@@ -52,17 +48,31 @@ except ImportError:
     print("Error: kafka-python not installed. Run 'pip install kafka-python'")
     sys.exit(1)
 
-# Configure logging
-logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
+# Configure logging from env var or default to INFO
+LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO").upper()
+logging.basicConfig(
+    level=getattr(logging, LOG_LEVEL, logging.INFO),
+    format="%(asctime)s [%(levelname)s] %(message)s"
+)
 logger = logging.getLogger("mqtt_kafka_bridge")
 
 # Configurations from environment variables
 MQTT_HOST = os.getenv("MQTT_HOST", "localhost")
 MQTT_PORT = int(os.getenv("MQTT_PORT", 1883))
-MQTT_TOPIC = os.getenv("MQTT_TOPIC", "ev/#")  # Changed from ev/battery/# to catch all contract topics
+MQTT_TOPIC = os.getenv("MQTT_TOPIC", "ev/#")  
 
 KAFKA_SERVERS = os.getenv("KAFKA_BOOTSTRAP_SERVERS", "localhost:9092")
-KAFKA_TOPIC = os.getenv("KAFKA_TOPIC", "telemetry.raw")  # Changed from ev-telemetry to telemetry.raw
+
+# ENTERPRISE ROUTING MAP: Mirroring the domain-split bus design
+MQTT_TO_KAFKA_ROUTE = {
+    "ev/telemetry": "ev.telemetry",
+    "ev/battery": "ev.battery",
+    "ev/location": "ev.location",
+    "ev/charging": "ev.charging",
+    "ev/status": "ev.status",
+    "ev/alerts": "ev.alerts",
+    "ev/heartbeat": "ev.diagnostics"
+}
 
 producer = None
 
@@ -77,20 +87,27 @@ def on_message(client, userdata, msg):
     global producer
     try:
         payload = msg.payload.decode("utf-8")
-        logger.info(f"Received MQTT payload on topic {msg.topic}: {payload}")
+        logger.debug(f"Received MQTT payload on topic {msg.topic}")
 
         # Verify JSON validity
         data = json.loads(payload)
 
-        # Enrich data with source MQTT topic
+        # Enrich data with source MQTT topic trace tag
         data["mqtt_source_topic"] = msg.topic
 
-        # Forward to Kafka
+        # DYNAMIC ROUTING FIX: Map the incoming MQTT topic directly to the target domain stream
+        target_kafka_topic = MQTT_TO_KAFKA_ROUTE.get(msg.topic, "ev.unknown")
+
+        if target_kafka_topic == "ev.unknown":
+            logger.warning(f"Unmapped MQTT topic received ({msg.topic}). Skipping bridge routing.")
+            return
+
+        # Forward dynamically to its explicit Kafka domain channel line
         if producer:
-            future = producer.send(KAFKA_TOPIC, value=data)
+            future = producer.send(target_kafka_topic, value=data)
             # block for a maximum of 10 seconds to confirm send
             record_metadata = future.get(timeout=10)
-            logger.info(f"Forwarded message to Kafka topic '{record_metadata.topic}' partition [{record_metadata.partition}] offset {record_metadata.offset}")
+            logger.debug(f"Forwarded to Kafka stream '{record_metadata.topic}' | Partition [{record_metadata.partition}] | Offset {record_metadata.offset}")
         else:
             logger.warning("Kafka Producer is offline. Event dropped.")
 
@@ -160,115 +177,11 @@ allow_anonymous true
 listener 9001
 protocol websockets
 allow_anonymous true
-```
 
----
-
-## neo4j\init_db.py
-
-```python
-import os
-import sys
-from neo4j import GraphDatabase
-
-NEO4J_URI = os.getenv("NEO4J_URI", "bolt://localhost:7687")
-NEO4J_USER = os.getenv("NEO4J_USER", "neo4j")
-NEO4J_PASSWORD = os.getenv("NEO4J_PASSWORD", "neo4jpassword")
-
-def load_cypher_file(file_path):
-    """Loads and splits Cypher queries from the file, stripping comments."""
-    if not os.path.exists(file_path):
-        print(f"Error: Cypher file not found at {file_path}")
-        return []
-    
-    with open(file_path, "r", encoding="utf-8") as f:
-        content = f.read()
-
-    queries = []
-    current_query = []
-    
-    for line in content.split("\n"):
-        stripped = line.strip()
-        if not stripped:
-            if current_query:
-                queries.append("\n".join(current_query))
-                current_query = []
-            continue
-        if stripped.startswith("//"):
-            continue
-        current_query.append(line)
-        
-    if current_query:
-        queries.append("\n".join(current_query))
-        
-    return [q.strip() for q in queries if q.strip()]
-
-def seed_database():
-    print("Starting Neo4j database seeding...")
-    script_dir = os.path.dirname(os.path.abspath(__file__))
-    cypher_path = os.path.join(script_dir, "init_graph.cypher")
-    
-    queries = load_cypher_file(cypher_path)
-    if not queries:
-        print("No Cypher queries found to execute.")
-        return
-
-    try:
-        driver = GraphDatabase.driver(NEO4J_URI, auth=(NEO4J_USER, NEO4J_PASSWORD))
-        with driver.session() as session:
-            # Clean existing nodes and relationships first to avoid duplicates
-            print("Cleaning existing graph data...")
-            session.run("MATCH (n) DETACH DELETE n")
-            
-            # Execute initialization queries
-            print(f"Executing {len(queries)} seeding queries...")
-            for i, query in enumerate(queries, 1):
-                print(f"Executing query {i}/{len(queries)}...")
-                session.run(query)
-                
-            print("Successfully seeded Neo4j graph database!")
-            
-        driver.close()
-    except Exception as e:
-        print(f"Error connecting to or seeding Neo4j database: {e}")
-        sys.exit(1)
-
-if __name__ == "__main__":
-    seed_database()
-```
-
----
-
-## neo4j\init_graph.cypher
-
-```
-// Create Mine Nodes
-CREATE (m1:Mine {name: "Salar de Atacama", location: "Chile", material: "Lithium Brine", capacity_tons_year: 50000})
-CREATE (m2:Mine {name: "Katanga Copper-Cobalt Mine", location: "DR Congo", material: "Cobalt Ore", capacity_tons_year: 25000})
-
-// Create Refiner Nodes
-CREATE (r1:Refiner {name: "Tianqi Lithium", location: "Sichuan, China", material: "Battery-grade Lithium Hydroxide"})
-CREATE (r2:Refiner {name: "Sumitomo Metal Mining", location: "Niihama, Japan", material: "Cathode Precursor Material"})
-
-// Create Battery Plant Nodes
-CREATE (p1:BatteryPlant {name: "CATL Yibin", location: "Sichuan, China", cell_type: "LFP", annual_gwh: 40})
-CREATE (p2:BatteryPlant {name: "Panasonic Gigafactory", location: "Nevada, USA", cell_type: "NCA", annual_gwh: 35})
-
-// Create Vehicle Nodes
-CREATE (v1:Vehicle {id: "EV-HD-001", model: "Industrial Heavy Hauler", location: "Denver Hub"})
-CREATE (v2:Vehicle {id: "EV-HD-002", model: "Yard Tractor", location: "Denver Hub"})
-CREATE (v3:Vehicle {id: "EV-HD-003", model: "Heavy Duty Hauler", location: "Houston Hub"})
-CREATE (v4:Vehicle {id: "EV-HD-004", model: "Last Mile Delivery", location: "Chicago Hub"})
-
-// Create Relationships (Supply Chain Dependency Chains)
-CREATE (m1)-[:SUPPLIES_RAW_TO {transit_time_days: 12}]->(r1)
-CREATE (m2)-[:SUPPLIES_RAW_TO {transit_time_days: 28}]->(r2)
-CREATE (r1)-[:DELIVERS_REFINED_TO {transit_time_days: 4}]->(p1)
-CREATE (r2)-[:DELIVERS_REFINED_TO {transit_time_days: 8}]->(p2)
-CREATE (p1)-[:SHIPS_CELLS_TO {transit_time_days: 18}]->(v1)
-CREATE (p1)-[:SHIPS_CELLS_TO {transit_time_days: 18}]->(v2)
-CREATE (p2)-[:SHIPS_CELLS_TO {transit_time_days: 2}]->(v3)
-CREATE (p2)-[:SHIPS_CELLS_TO {transit_time_days: 4}]->(v4)
+# Logging configuration to reduce spam
+log_dest stdout
+log_type error
+log_type warning
 ```
 
 ---
@@ -303,10 +216,12 @@ CREATE INDEX IF NOT EXISTS idx_telemetry_vehicle_timestamp ON telemetry (vehicle
 CREATE TABLE IF NOT EXISTS charging_sessions (
     id SERIAL PRIMARY KEY,
     vehicle_id VARCHAR(50) NOT NULL,
+    charger_id VARCHAR(50),
     start_time TIMESTAMPTZ NOT NULL,
     end_time TIMESTAMPTZ,
-    energy_delivered_kwh DOUBLE PRECISION NOT NULL,
-    starting_soc DOUBLE PRECISION NOT NULL,
+    status VARCHAR(20) NOT NULL DEFAULT 'ACTIVE',
+    energy_consumed_kwh DOUBLE PRECISION DEFAULT 0.0,
+    starting_soc DOUBLE PRECISION DEFAULT 0.0,
     ending_soc DOUBLE PRECISION
 );
 
@@ -521,21 +436,29 @@ def run_consumer():
         return
 
     bootstrap_servers = os.getenv("KAFKA_BOOTSTRAP_SERVERS", "localhost:9092")
-    topic = os.getenv("KAFKA_TOPIC", "telemetry.raw")
+    
+    # SYSTEM UPGRADE: Listen to all segmented domain topics starting with 'ev.'
+    # Instead of 'telemetry.raw', we match 'ev.telemetry', 'ev.battery', etc.
+    topic_pattern = "ev\..*"
 
-    print(f"Connecting to Kafka topic '{topic}' at {bootstrap_servers}...")
+    print(f"Connecting to Kafka topics matching pattern '{topic_pattern}' at {bootstrap_servers}...")
 
     consumer = None
     retries = 5
     while retries > 0:
         try:
+            # Note: We do NOT pass the positional topic argument here because 
+            # we are using consumer.subscribe(pattern=...) instead.
             consumer = KafkaConsumer(
-                topic,
                 bootstrap_servers=bootstrap_servers,
                 auto_offset_reset='latest',
-                value_deserializer=lambda m: json.loads(m.decode('utf-8'))
+                value_deserializer=lambda m: json.loads(m.decode('utf-8')),
+                group_id="infrastructure_telemetry_debug_group"
             )
-            print("Successfully connected to Kafka!")
+            
+            # Dynamically subscribe to the regex channel configuration
+            consumer.subscribe(pattern=topic_pattern)
+            print("Successfully connected to Kafka and subscribed to Domain Streams!")
             break
         except Exception as e:
             retries -= 1
@@ -546,10 +469,13 @@ def run_consumer():
         print("Failed to connect to Kafka. Exiting.")
         return
 
-    print("Waiting for messages...")
+    print("Waiting for messages from segmented streams...\n")
     for message in consumer:
         data = message.value
-        print(f"Received telemetry event: {data}")
+        # Enhanced output to display exactly which domain channel this payload arrived on
+        print(f"─── [BUS EVENT] Received on Topic: {message.topic} ───")
+        print(json.dumps(data, indent=2))
+        print("─" * 50 + "\n")
 
 if __name__ == "__main__":
     run_consumer()

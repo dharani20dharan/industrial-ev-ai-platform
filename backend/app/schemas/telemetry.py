@@ -1,4 +1,4 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 from datetime import datetime
 from typing import Optional, List
 
@@ -15,9 +15,8 @@ class TelemetryCreate(TelemetryBase):
 class TelemetryResponse(TelemetryBase):
     id: int
     timestamp: datetime
-
-    class Config:
-        from_attributes = True
+    # FIX: Replaced old class Config with Pydantic V2 model_config property
+    model_config = ConfigDict(from_attributes=True)
 
 class BatteryHealthResponse(BaseModel):
     vehicle_id: str
@@ -25,9 +24,7 @@ class BatteryHealthResponse(BaseModel):
     cycle_count: int
     state_of_health: float
     remaining_useful_life: int
-
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 class AlertResponse(BaseModel):
     id: int
@@ -37,9 +34,7 @@ class AlertResponse(BaseModel):
     type: str
     description: str
     resolved: bool
-
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 class SupplierRiskResponse(BaseModel):
     id: int
@@ -47,9 +42,7 @@ class SupplierRiskResponse(BaseModel):
     location: str
     risk_score: float
     material_supplied: str
-
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 class DependencyNode(BaseModel):
     id: str

@@ -196,17 +196,30 @@ pip install -r requirements.txt
 
 ```mermaid
 graph TD
-    Docker[Docker Compose]
-        ↓
-    Infra[Infrastructure: Kafka, MQTT, TimescaleDB, Neo4j, Redis]
-        ↓
-    DBInit[Database Initialization: TimescaleDB]
-        ↓
-    ML[ML Pipeline Execution]
-        ↓
-    Backend[FastAPI Backend: API, Consumers, Producers, WebSockets]
-        ↓
-    Frontend[Vite React Frontend]
+
+    A["docker-compose up -d"]
+    --> B["Infrastructure Services<br/>Kafka • MQTT • TimescaleDB • Neo4j • Redis"]
+
+    B
+    --> C["Initialize TimescaleDB"]
+
+    C
+    --> D["Run ML Pipeline"]
+
+    D
+    --> E["Optional Seeders<br/>Supply Chain & Sustainability"]
+
+    E
+    --> F["Start FastAPI Backend"]
+
+    F
+    --> G["Start React Frontend"]
+
+    F -.-> H["Kafka Consumers"]
+
+    F -.-> I["MQTT Bridge"]
+
+    F -.-> J["WebSocket Manager"]
 ```
 
 ### 4. Complete Terminal-by-Terminal Startup

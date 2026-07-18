@@ -73,3 +73,17 @@ CREATE TABLE IF NOT EXISTS maintenance_logs (
     action_taken VARCHAR(255),
     status VARCHAR(50) DEFAULT 'Pending'
 );
+
+-- 10. Supply Chain Intelligence Time-Series Data
+CREATE TABLE IF NOT EXISTS supply_chain_history (
+    id SERIAL,
+    timestamp TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    entity_id VARCHAR(50) NOT NULL,
+    entity_type VARCHAR(50) NOT NULL,
+    risk_score DOUBLE PRECISION NOT NULL,
+    dependency_depth DOUBLE PRECISION DEFAULT 0.0,
+    downstream_impacts INTEGER DEFAULT 0
+);
+
+SELECT create_hypertable('supply_chain_history', 'timestamp', if_not_exists => TRUE);
+CREATE INDEX IF NOT EXISTS idx_sch_entity_timestamp ON supply_chain_history (entity_id, timestamp DESC);

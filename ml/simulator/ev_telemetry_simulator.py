@@ -27,6 +27,17 @@ except ImportError:
     MQTT_AVAILABLE = False
 
 
+class NpEncoder(json.JSONEncoder):
+    def default(self, obj):
+        if isinstance(obj, np.integer):
+            return int(obj)
+        if isinstance(obj, np.floating):
+            return float(obj)
+        if isinstance(obj, np.ndarray):
+            return obj.tolist()
+        return super(NpEncoder, self).default(obj)
+
+
 class EVVehicle:
     """Simulates a single EV with realistic battery behavior."""
     
@@ -144,33 +155,33 @@ class EVVehicle:
             'vehicle_id': self.vehicle_id,
             'timestamp': datetime.utcnow().isoformat() + 'Z',
             'battery': {
-                'soc': round(self.soc, 2),
-                'voltage': round(voltage, 2),
-                'current': round(current, 2),
-                'temperature': round(self.temperature, 2),
-                'soh': round(self.soh, 2),
-                'cycle_count': self.battery_age_cycles,
-                'internal_resistance': round(self.internal_resistance, 5),
-                'capacity_kwh': round(self.initial_capacity * self.soh / 100, 2)
+                'soc': float(round(self.soc, 2)),
+                'voltage': float(round(voltage, 2)),
+                'current': float(round(current, 2)),
+                'temperature': float(round(self.temperature, 2)),
+                'soh': float(round(self.soh, 2)),
+                'cycle_count': int(self.battery_age_cycles),
+                'internal_resistance': float(round(self.internal_resistance, 5)),
+                'capacity_kwh': float(round(self.initial_capacity * self.soh / 100, 2))
             },
             'vehicle': {
-                'speed_kmh': round(self.speed, 1),
-                'odometer_km': round(self.odometer, 1),
+                'speed_kmh': float(round(self.speed, 1)),
+                'odometer_km': float(round(self.odometer, 1)),
                 'is_moving': bool(self.is_moving),
                 'location': {
-                    'latitude': round(self.latitude, 6),
-                    'longitude': round(self.longitude, 6)
+                    'latitude': float(round(self.latitude, 6)),
+                    'longitude': float(round(self.longitude, 6))
                 }
             },
             'charging': {
                 'is_charging': bool(self.is_charging),
                 'charger_type': 'DC_FAST' if self.is_charging else None,
-                'power_kw': round(abs(current) * voltage / 1000, 2) if self.is_charging else 0
+                'power_kw': float(round(abs(current) * voltage / 1000, 2)) if self.is_charging else 0.0
             },
             'anomaly': {
                 'detected': bool(anomaly_type is not None),
                 'type': anomaly_type,
-                'severity': round(anomaly_severity, 3)
+                'severity': float(round(anomaly_severity, 3))
             }
         }
         
@@ -236,7 +247,7 @@ class EVFleetSimulator:
                 "soc": telemetry['battery']['soc'],
                 "cycle_count": telemetry['battery']['cycle_count']
             }
-            self.mqtt_client.publish(f"ev/battery/{vehicle_id}", json.dumps(payload))
+            self.mqtt_client.publish(f"ev/battery/{vehicle_id}", json.dumps(payload, cls=NpEncoder))
         
         elif self.output_mode == 'file':
             self.telemetry_log.append(telemetry)
@@ -296,7 +307,7 @@ class EVFleetSimulator:
             os.makedirs(output_dir, exist_ok=True)
             output_path = os.path.join(output_dir, 'simulated_telemetry.json')
             with open(output_path, 'w') as f:
-                json.dump(self.telemetry_log, f, indent=2)
+                json.dump(self.telemetry_log, f, indent=2, cls=NpEncoder)
             print(f"\n[SAVE] {len(self.telemetry_log)} records saved to {output_path}")
         
         # Generate summary

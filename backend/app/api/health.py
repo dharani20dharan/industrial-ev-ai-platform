@@ -49,3 +49,22 @@ async def kafka_readiness_check():
         status_code=status.HTTP_503_SERVICE_UNAVAILABLE, 
         detail="Kafka event bus connections are not fully active."
     )
+
+@router.get("/neo4j")
+async def neo4j_readiness_check():
+    """Verifies the Neo4j Graph Database connection is active."""
+    try:
+        from app.core.neo4j import get_neo4j_driver
+        driver = get_neo4j_driver()
+        async with driver.session() as session:
+            result = await session.run("MATCH (n) RETURN count(n) as count")
+            record = await result.single()
+            node_count = record["count"] if record else 0
+            
+        return {"status": "connected", "protocol": "bolt", "node_count": node_count}
+    except Exception as e:
+        logger.warning(f"Neo4j health check failed: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE, 
+            detail="Neo4j graph database connection is not active."
+        )

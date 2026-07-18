@@ -14,6 +14,7 @@ class ApplicationContainer:
         self._mqtt_client: Optional[Any] = None
         self._kafka_producer: Optional[Any] = None
         self._kafka_consumer: Optional[Any] = None
+        self._neo4j_client: Optional[Any] = None
 
     def register_mqtt_client(self, client: Any) -> None:
         self._mqtt_client = client
@@ -26,6 +27,10 @@ class ApplicationContainer:
     def register_kafka_consumer(self, consumer: Any) -> None:
         self._kafka_consumer = consumer
         logger.debug("Async Kafka Consumer Framework registered to DI container.")
+
+    def register_neo4j_client(self, client: Any) -> None:
+        self._neo4j_client = client
+        logger.debug("Async Neo4j Client registered to DI container.")
 
     @property
     def mqtt_client(self) -> Any:
@@ -44,6 +49,12 @@ class ApplicationContainer:
         if not self._kafka_consumer:
             raise RuntimeError("Kafka Consumer requested before initialization.")
         return self._kafka_consumer
+
+    @property
+    def neo4j_client(self) -> Any:
+        if not self._neo4j_client:
+            raise RuntimeError("Neo4j Client requested before initialization.")
+        return self._neo4j_client
 
     def get_kafka_consumer(self) -> Any:
         """Explicit getter used during startup to wire WebSocket callbacks."""

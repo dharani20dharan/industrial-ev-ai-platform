@@ -6,5 +6,6 @@ api_router = APIRouter()
 api_router.include_router(health.router, tags=["health"])
 api_router.include_router(telemetry.router, tags=["telemetry"])
 api_router.include_router(ml_inference.router, tags=["ml_inference"])
-api_router.include_router(supply_chain.router, tags=["supply_chain"])
-api_router.include_router(sustainability.router, tags=["sustainability"])
+api_router.include_router(supply_chain.router, prefix="/supply-chain", tags=["supply_chain"])
+api_router.include_router(sustainability.router, prefix="/sustainability", tags=["sustainability"])
+

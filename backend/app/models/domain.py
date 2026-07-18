@@ -79,3 +79,18 @@ class AlertRecord(Base):
     alert_type = Column(String(50), nullable=False, index=True)  # THERMAL_RUNAWAY, OVER_VOLTAGE, ANOMALY
     description = Column(String(255), nullable=False)
     resolved = Column(Boolean, default=False, nullable=False)
+
+# ---------------------------------------------------------
+# SUPPLY CHAIN INTELLIGENCE MODELS
+# ---------------------------------------------------------
+
+class SupplyChainHistory(Base):
+    __tablename__ = "supply_chain_history"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    timestamp = Column(DateTime(timezone=True), primary_key=True, default=datetime.utcnow)
+    entity_id = Column(String(50), nullable=False, index=True)
+    entity_type = Column(String(50), nullable=False)
+    risk_score = Column(Float, nullable=False)
+    dependency_depth = Column(Float, nullable=False, default=0.0)
+    downstream_impacts = Column(Integer, nullable=False, default=0)

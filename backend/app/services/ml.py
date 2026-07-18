@@ -20,8 +20,24 @@ logger = logging.getLogger(__name__)
 # Lazy initialization placeholders
 _anomaly_detector = None
 _battery_predictor = None
+_supply_chain_risk_scorer = None
+
+def get_supply_chain_risk_scorer():
+    """Lazily load and return the SupplyChainRiskScorer engine."""
+    global _supply_chain_risk_scorer
+    if _supply_chain_risk_scorer is None:
+        try:
+            from engines.risk_scorer import SupplyChainRiskScorer
+            _supply_chain_risk_scorer = SupplyChainRiskScorer()
+            logger.info("SupplyChainRiskScorer engine successfully loaded.")
+        except Exception as e:
+            logger.error(f"Error loading SupplyChainRiskScorer: {e}")
+            from engines.risk_scorer import SupplyChainRiskScorer
+            _supply_chain_risk_scorer = SupplyChainRiskScorer()
+    return _supply_chain_risk_scorer
 
 def get_anomaly_detector():
+
     """Lazily load and return the pre-trained AnomalyDetector."""
     global _anomaly_detector
     if _anomaly_detector is None:

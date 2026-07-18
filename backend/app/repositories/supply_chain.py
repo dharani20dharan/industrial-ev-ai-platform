@@ -148,16 +148,16 @@ class SupplyChainRepository:
 
     async def get_alternative_suppliers_for_material(self, material_id: str) -> List[Dict[str, Any]]:
         query = """
-        MATCH (s:Supplier)-[:SUPPLIES]->(m:Mine)-[:MINES]->(mat:Material {material_id: $material_id})
+        MATCH (s:Supplier)-[:SUPPLIES]->(mat:Material {material_id: $material_id})
         RETURN s as supplier, mat as material
         """
         return await self.run_read_query(query, {"material_id": material_id})
 
     async def get_alternative_suppliers_for_supplier(self, supplier_id: str) -> List[Dict[str, Any]]:
         query = """
-        MATCH (s:Supplier {supplier_id: $supplier_id})-[:SUPPLIES]->(:Mine)-[:MINES]->(mat:Material)
+        MATCH (s:Supplier {supplier_id: $supplier_id})-[:SUPPLIES]->(mat:Material)
         WITH mat
-        MATCH (alt:Supplier)-[:SUPPLIES]->(:Mine)-[:MINES]->(mat)
+        MATCH (alt:Supplier)-[:SUPPLIES]->(mat)
         WHERE alt.supplier_id <> $supplier_id
         RETURN DISTINCT mat as material, alt as alternative_supplier
         """

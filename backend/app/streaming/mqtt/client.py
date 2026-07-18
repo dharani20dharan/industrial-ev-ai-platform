@@ -151,10 +151,10 @@ class MqttIngestionClient:
             ) as client:
                 logger.info("Connected to Mosquitto broker successfully.")
                 
-                # 1. Subscribe to all fixed data topics
+                # 1. Subscribe to all fixed data topics with wildcards
                 for topic in self.topics:
-                    await client.subscribe(topic)
-                    logger.info("Subscribed to MQTT topic", extra={"mqtt_topic": topic})
+                    await client.subscribe(topic + "/#")
+                    logger.info("Subscribed to MQTT topic with wildcard", extra={"mqtt_topic": topic + "/#"})
                 
                 # 2. Consume incoming message frames asynchronously
                 async for message in client.messages:
@@ -173,16 +173,20 @@ class MqttIngestionClient:
         if not isinstance(payload_bytes, bytes):
             return
 
-        # 1. Structural Schema Validation Check
-        validated_model = validate_raw_payload(topic, payload_bytes)
+        # 1. Extract base topic (e.g., "ev/battery" from "ev/battery/EV-001")
+        parts = topic.split("/")
+        base_topic = "/".join(parts[:2]) if len(parts) >= 2 else topic
+
+        # 2. Structural Schema Validation Check
+        validated_model = validate_raw_payload(base_topic, payload_bytes)
         
         if validated_model:
-            # 2. Normalize and extract the target domain channel type
-            envelope = normalize_to_envelope(topic, validated_model)
+            # 3. Normalize and extract the target domain channel type
+            envelope = normalize_to_envelope(base_topic, validated_model)
             
             # DYNAMIC ROUTING FIX: Grab the exact destination from the normalizer mapping
             target_kafka_topic = envelope.event_type
             
-            # 3. Stream asynchronously straight onto the specific Kafka Topic Bus line
+            # 4. Stream asynchronously straight onto the specific Kafka Topic Bus line
             kafka_producer = container.kafka_producer
             asyncio.create_task(kafka_producer.publish(target_kafka_topic, envelope))

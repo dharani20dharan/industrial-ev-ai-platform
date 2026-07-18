@@ -70,7 +70,7 @@ services:
       - POSTGRES_PASSWORD=ev_password
       - POSTGRES_DB=ev_platform
     ports:
-      - "5432:5432"
+      - "5433:5432"
     volumes:
       - ./infrastructure/timescaledb/init.sql:/docker-entrypoint-initdb.d/init.sql
     networks:

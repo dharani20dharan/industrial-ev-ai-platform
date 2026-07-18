@@ -124,7 +124,7 @@ async def test_analyze_material_impact():
 
 async def test_analyze_refinery_impact():
     async with get_client() as client:
-        response = await client.get(f"{BASE_URL}/impact/refinery/REF-001")
+        response = await client.get(f"{BASE_URL}/impact/refinery/R001")
         assert response.status_code == 200, f"Expected 200, got {response.status_code}: {response.text}"
         data = response.json()
         assert data["entity_type"] == "Refinery"

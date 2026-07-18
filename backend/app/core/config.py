@@ -27,7 +27,7 @@ class Neo4jSettings(BaseModel):
 
 class AppSettings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", env_nested_delimiter="__", extra="ignore")
-    database_url: str = "postgresql+asyncpg://ev_admin:ev_password@localhost:5432/ev_platform"
+    database_url: str = "postgresql+asyncpg://ev_admin:ev_password@localhost:5433/ev_platform"
     redis_url: str = Field(default="redis://localhost:6379")
     environment: str = Field(default="development")
     debug: bool = Field(default=False)

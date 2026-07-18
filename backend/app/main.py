@@ -16,6 +16,7 @@ from app.streaming.producers.client import KafkaEventProducer
 from app.streaming.consumers.client import KafkaEventConsumer
 from app.streaming.websocket.adapter import kafka_to_ws_broadcaster
 from app.streaming.processor.telemetry import TelemetryProcessor
+from app.streaming.processor.sustainability import CarbonProcessor
 from app.api.v1.rest_routes import router as rest_router
 from app.api.v1.api import api_router as v1_api_router
 
@@ -38,10 +39,12 @@ async def lifespan(app: FastAPI):
     container.register_kafka_consumer(kafka_consumer)
 
     telemetry_processor = TelemetryProcessor()
+    carbon_processor = CarbonProcessor()
 
     # Domain routing bindings
     kafka_consumer.register_callback("ev.telemetry", kafka_to_ws_broadcaster)
     kafka_consumer.register_callback("ev.telemetry", telemetry_processor.process_kinematics)
+    kafka_consumer.register_callback("ev.telemetry", carbon_processor.process_telemetry)
 
     kafka_consumer.register_callback("ev.battery", kafka_to_ws_broadcaster)
     kafka_consumer.register_callback("ev.battery", telemetry_processor.process_battery)
@@ -52,11 +55,23 @@ async def lifespan(app: FastAPI):
     kafka_consumer.register_callback("ev.charging", kafka_to_ws_broadcaster)
     kafka_consumer.register_callback("ev.charging", telemetry_processor.process_charging)
 
-    # Map the incoming stream topic straight into the processing instance method
     kafka_consumer.register_callback(
         topic="ev.alerts",
         callback=telemetry_processor.process_alerts
     )
+
+    # Phase 4: Supply Chain Events
+    from app.streaming.processor.supply_chain import supply_chain_processor
+    kafka_consumer.register_callback(
+        topic="ev.supply_chain",
+        callback=supply_chain_processor.process_event
+    )
+
+    from app.core.cache import cache_manager
+    try:
+        await cache_manager.connect()
+    except Exception as e:
+        print(f"[WARN] Failed to connect to Redis cache: {e}")
 
     try:
         await kafka_producer.start()
@@ -73,9 +88,24 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         print(f"[WARN] Failed to start MQTT Client (broker offline): {e}")
 
+    from app.core.neo4j import neo4j_client
+    container.register_neo4j_client(neo4j_client)
+    try:
+        await neo4j_client.connect()
+    except Exception as e:
+        print(f"[WARN] Failed to connect to Neo4j Database: {e}")
+
     print(">>> FastAPI Enterprise Platform Streaming Engine Running (Offline Fallbacks Active) <<<")
     yield
 
+    try:
+        await cache_manager.disconnect()
+    except Exception:
+        pass
+    try:
+        await neo4j_client.close()
+    except Exception:
+        pass
     try:
         await mqtt_client.stop()
     except Exception:
@@ -93,5 +123,11 @@ app = FastAPI(title="Industrial EV AI Platform", lifespan=lifespan)
 
 app.include_router(health_router)
 app.include_router(ws_router)
+app.include_router(ws_router, prefix="/api/v1")
 app.include_router(rest_router)
 app.include_router(v1_api_router, prefix="/api/v1")
+
+# Prometheus Metrics Export
+from prometheus_client import make_asgi_app
+metrics_app = make_asgi_app()
+app.mount("/metrics", metrics_app)

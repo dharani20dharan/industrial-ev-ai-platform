@@ -4,6 +4,8 @@ from sqlalchemy.ext.asyncio import create_async_engine
 from sqlalchemy import text
 from app.core.config import settings
 from app.models.domain import Base
+# Import sustainability models to register them with SQLAlchemy Base metadata
+from app.models.sustainability import CarbonReport, ReadinessAssessment
 
 logging.basicConfig(level=logging.WARNING)
 logger = logging.getLogger(__name__)
@@ -23,7 +25,9 @@ async def init_db():
             "SELECT create_hypertable('telemetry', 'timestamp', if_not_exists => TRUE);",
             "SELECT create_hypertable('battery_records', 'timestamp', if_not_exists => TRUE);",
             "SELECT create_hypertable('location_history', 'timestamp', if_not_exists => TRUE);",
-            "SELECT create_hypertable('alert_records', 'timestamp', if_not_exists => TRUE);"
+            "SELECT create_hypertable('alert_records', 'timestamp', if_not_exists => TRUE);",
+            "SELECT create_hypertable('carbon_report', 'generated_at', if_not_exists => TRUE);",
+            "SELECT create_hypertable('readiness_assessment', 'generated_at', if_not_exists => TRUE);"
         ]
 
         for query in hypertable_queries:

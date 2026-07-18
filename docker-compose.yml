@@ -50,8 +50,17 @@ services:
           kafka-topics.sh --create --if-not-exists --bootstrap-server kafka:9095 --topic ev.status --partitions 2
           kafka-topics.sh --create --if-not-exists --bootstrap-server kafka:9095 --topic ev.alerts --partitions 2
           kafka-topics.sh --create --if-not-exists --bootstrap-server kafka:9095 --topic ev.diagnostics --partitions 2
+          kafka-topics.sh --create --if-not-exists --bootstrap-server kafka:9095 --topic ev.supply_chain --partitions 2
           echo 'Domain Topics created successfully.'
         "
+
+  redis:
+    image: redis:7-alpine
+    container_name: redis_cache
+    ports:
+      - "6379:6379"
+    networks:
+      - ev-network
 
   timescaledb:
     image: timescale/timescaledb:latest-pg14
@@ -75,9 +84,14 @@ services:
     ports:
       - "7474:7474"
       - "7687:7687"
+    volumes:
+      - neo4j_data:/data
     networks:
       - ev-network
 
 networks:
   ev-network:
     driver: bridge
+
+volumes:
+  neo4j_data:

@@ -18,7 +18,6 @@ class KafkaEventConsumer:
         self.consumer = None
         self._consume_task = None
         
-        # UNIFIED NAME: Changed from self.valid_topics to self.ALLOWED_TOPICS
         self.ALLOWED_TOPICS = {
             "ev.telemetry",
             "ev.battery",
@@ -26,7 +25,8 @@ class KafkaEventConsumer:
             "ev.charging",
             "ev.status",
             "ev.alerts",
-            "ev.diagnostics"
+            "ev.diagnostics",
+            "ev.supply_chain"
         }
         
         # Internal router mapping Kafka topics to a list of registered async callbacks

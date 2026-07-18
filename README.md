@@ -1,203 +1,269 @@
 # Industrial EV AI Platform
 
-An enterprise-grade, end-to-end Industrial IoT (IIoT) analytics and intelligence platform designed for electric vehicle (EV) fleet asset monitoring, predictive maintenance, supply chain graph analysis, and carbon accounting.
+An advanced AI-driven platform for Industrial EV Battery Lifecycle Management and Supply Chain Traceability.
+
+This prototype demonstrates a full-stack, event-driven architecture combining time-series IoT telematics, graph-based supply chain mapping, real-time Machine Learning risk scoring, and dynamic frontend visualization.
 
 ---
 
-## 🏗️ System Architecture
+## 🏛️ Architecture
 
-The platform is designed around a decoupled, highly scalable event-driven architecture to support sub-second telemetry ingestion, graph traversal, and ML inference.
+The platform relies on a modern, decoupled microservices architecture designed for real-time data ingestion and complex graph traversals.
 
 ```mermaid
 graph TD
-    %% Telemetry Stream Ingestion
-    subgraph Data Generation & Ingestion
-        Sim[EV Telemetry Simulator] -->|MQTT Publish| Mosquitto[Eclipse Mosquitto Broker]
-        Mosquitto -->|ev/battery/*| KP[Kafka Producer Bridge]
-        KP -->|Event Ingestion| Kafka[Apache Kafka Broker]
+    %% External Inputs
+    subgraph Edge / Simulators
+        EV[EV Telemetry Simulator] -->|JSON/Kafka| K[Kafka Message Broker]
+        SC[Supply Chain Events] -->|JSON/Kafka| K
     end
 
-    %% Storage & Streaming Analytics
-    subgraph Data Storage & Real-Time Processing
-        Kafka -->|Kafka Consumer| TSDB[(TimescaleDB hypertable)]
-        Kafka -->|Live WebSockets| FastAPI[FastAPI Web Server]
+    %% Streaming & Broker
+    K -->|IoT Events| TS[TimescaleDB]
+    K -->|Supply Chain Updates| WS[WebSocket Manager]
+    K -->|Risk Events| Cache[Redis Cache]
+
+    %% Backend Services (FastAPI)
+    subgraph Backend [FastAPI Application]
+        API[REST APIs]
+        ML[ML Risk Scorer]
+        Repo[Data Repositories]
     end
 
-    %% Databases & Models
-    subgraph Data Models & Intelligence
-        FastAPI -->|REST API & Cypher Queries| Neo4j[(Neo4j Graph Database)]
-        FastAPI -->|ML Feature Vector| ML[Predictive AI Engine]
-        ML -->|Isolation Forest| Anom[Anomaly Detection]
-        ML -->|XGBoost| RUL[Remaining Useful Life]
+    %% Databases
+    subgraph Databases
+        Neo4j[(Neo4j Graph DB)]
+        TS_DB[(TimescaleDB)]
+        Redis[(Redis)]
     end
 
-    %% Presentation Layer
-    subgraph Presentation
-        FastAPI -->|WebSocket & JSON APIs| React[React + TS Dashboard]
+    %% Connections
+    API <--> ML
+    API <--> Repo
+    Repo <--> Neo4j
+    Repo <--> TS_DB
+    API <--> Redis
+
+    %% Frontend
+    subgraph Frontend [React Web App]
+        Dash[Fleet Dashboard]
+        Graph[Supply Chain Network]
+        Risk[Risk Dashboard]
     end
 
-    classDef db fill:#2f3b52,stroke:#4f5d75,stroke-width:2px;
-    classDef broker fill:#1f3322,stroke:#2a5c37,stroke-width:2px;
-    classDef engine fill:#3d1a3d,stroke:#732973,stroke-width:2px;
-    class TSDB,Neo4j db;
-    class Mosquitto,Kafka broker;
-    class ML,Anom,RUL engine;
-
+    %% Client Interactions
+    API <-->|REST /api/v1| Frontend
+    WS -.->|Real-time alerts| Frontend
 ```
+## 🏛️ Architecture
 
----
+The platform follows a decoupled microservice architecture for real-time telemetry ingestion, graph analytics, and dashboard visualization.
 
-## 🌟 Key Platform Capabilities
+```mermaid
+graph TD
 
-### 1. High-Throughput Telemetry Streaming
+%% ----------------------------
+%% Edge Layer
+%% ----------------------------
+subgraph EDGE["Edge & Simulation Layer"]
+    EV["EV Telemetry Simulator"]
+    SC["Supply Chain Event Generator"]
+end
 
-* Continuous state transmission (Voltage, Current, State of Charge, Core temperature) via **MQTT**.
-* Buffered event ingestion using **Apache Kafka** partitioned topic distributions.
-* Timeseries persistence leveraging **TimescaleDB** hypertables with dynamic temporal indexing and range-partition optimizations.
+%% ----------------------------
+%% Messaging Layer
+%% ----------------------------
+subgraph STREAM["Streaming Layer"]
+    K["Apache Kafka"]
+    WS["WebSocket Manager"]
+end
 
-### 2. Battery & Predictive Maintenance Intelligence
+%% ----------------------------
+%% Backend
+%% ----------------------------
+subgraph BACKEND["FastAPI Backend"]
+    API["REST API"]
+    ML["ML Risk Scoring"]
+    REPO["Repository Layer"]
+end
 
-* **State of Health (SoH) Analytics:** Tracks capacity fade using cumulative discharge integration (Ah depletion curves).
-* **Remaining Useful Life (RUL) Forecasting:** Predicts cycles remaining until battery capacity falls below the 80% degradation threshold using **XGBoost regression**.
-* **Anomaly Diagnostics:** Identifies thermal runaways and cell-level voltage imbalances using unsupervised **Isolation Forest models**.
+%% ----------------------------
+%% Databases
+%% ----------------------------
+subgraph DB["Databases"]
+    NEO["Neo4j"]
+    TIME["TimescaleDB"]
+    REDIS["Redis Cache"]
+end
 
-### 3. Supply Chain Graph Analytics
+%% ----------------------------
+%% Frontend
+%% ----------------------------
+subgraph UI["React Dashboard"]
+    DASH["Fleet Dashboard"]
+    GRAPH["Supply Chain Network"]
+    RISK["Risk Dashboard"]
+end
 
-* Maps multi-tier mineral dependencies (Mine ➔ Refiner ➔ Battery Plant ➔ Assembly Pack ➔ Fleet Vehicle) using **Neo4j Graph Database**.
-* Propagates cascading risks (geopolitical instability, shipping bottlenecks, and material shortage) along supply chains utilizing optimized Cypher graph traversal algorithms.
+%% ----------------------------
+%% Data Flow
+%% ----------------------------
 
-### 4. Carbon & Electrification Analytics
+EV -->|Telemetry Events| K
+SC -->|Supply Chain Events| K
 
-* Displaces direct Scope-1 combustion emissions vs Scope-3 charging grid emissions (based on local carbon intensity coefficients).
-* Calculates EV conversion suitability scores for internal combustion engine (ICE) routes based on payload, travel distances, charging station density, and depot dwell times.
+K -->|Telemetry| TIME
+K -->|Supply Chain Updates| API
+K -->|Risk Events| WS
 
----
+API --> ML
+ML --> API
 
-## 🛠️ Tech Stack Alignment
+API --> REPO
 
-| Layer | Technologies | Key Functionality |
-| --- | --- | --- |
-| **Frontend UI** | React 18, TypeScript, TailwindCSS, ShadCN UI, Recharts, React-Leaflet (v4) | Control dashboard views, responsive metrics widgets, live WebSocket visualization, dark-mesh maps |
-| **API Backend** | FastAPI, SQLAlchemy, Pydantic, Uvicorn | REST endpoints, Swagger/OpenAPI documentation, WebSocket gateways |
-| **Databases** | TimescaleDB (PostgreSQL), Neo4j Graph Database | Scalable telemetry timeseries, multi-tier dependency mapping |
-| **Event Pipeline** | Eclipse Mosquitto (MQTT), Apache Kafka, Zookeeper | Sub-second telemetry publisher/subscriber and streaming queues |
-| **AI/ML Stack** | NumPy, Pandas, Scikit-Learn, XGBoost | Data preprocessing, anomaly isolation, RUL regression forecasts |
+REPO --> NEO
+REPO --> TIME
+REPO --> REDIS
 
----
+API --> DASH
+API --> GRAPH
+API --> RISK
 
-## 📂 Repository Folder Layout
-
+WS -. Live Updates .-> DASH
+WS -. Alerts .-> RISK
 ```
-├── .gitignore                      # Python, Node, environment configurations ignore
-├── docker-compose.yml              # Local infrastructure stack (TimescaleDB, Neo4j, MQTT, Kafka)
-├── README.md                       # This document
-├── frontend/                       # React + TS + TailwindCSS Dashboard UI
-│   ├── package.json                # Frontend package dependencies
-│   ├── tsconfig.json               # TypeScript compiler config
-│   ├── tailwind.config.js          # Tailwind theme configurations
-│   ├── components.json             # ShadCN UI components config
-│   ├── src/
-│   │   ├── components/             # Reusable UI widgets (gauges, alerts panels)
-│   │   ├── layouts/                # Dashboard sidebar and navbar shell
-│   │   ├── pages/                  # Route views (Fleet, Battery, Supply Chain, Carbon, Alerts)
-│   │   └── router/                 # React Router definition mappings
-├── backend/                        # FastAPI Web API Backend
-│   ├── requirements.txt            # Python web server dependencies
-│   ├── app/
-│   │   ├── main.py                 # FastAPI core initializations & configurations
-│   │   ├── models/                 # SQLAlchemy schemas (telemetry, charging logs)
-│   │   ├── schemas/                # Pydantic serialization models
-│   │   └── api/                    # Routers (health, live telemetry, ML, Neo4j supply chain)
-├── ml/                             # ML Analytics & Synthetic Data Ingestion
-│   ├── requirements.txt            # Data science packages
-│   ├── notebooks/                  # EDA, NASA battery dataset profiling, model files
-│   ├── src/                        # Preprocessing pipelines (thermal variance, discharge slope)
-│   └── simulator/                  # Paho-MQTT based synthetic telemetry stream simulator
-└── infrastructure/                 # Databases, brokers, and streaming configurations
-    ├── timescaledb/                # Hypertable init scripts & partitioning queries
-    ├── neo4j/                      # Cypher query imports & relationship setup
-    ├── kafka/                      # Kafka producers & consumers
-    └── mosquitto/                  # MQTT broker configurations
+---
 
-```
+## 🚀 Features
+
+### 1. Battery Lifecycle Management (TimescaleDB)
+- **Time-Series Telematics:** High-frequency ingestion of EV battery metrics (SoC, voltage, temperature).
+- **Sustainability Tracking:** Calculates battery degradation, carbon footprint, and remaining useful life (RUL).
+
+### 2. Supply Chain Traceability (Neo4j)
+- **Multi-Tier Dependency Graph:** Maps Mines ➔ Refineries ➔ Battery Plants ➔ Fleet Vehicles.
+- **Material Flow Analysis:** Tracks raw materials (Lithium, Cobalt, Nickel) upstream and downstream.
+
+### 3. AI Risk Scoring & Procurement Recommendations (ML)
+- **Real-Time Risk Engine:** Evaluates supplier risk based on geopolitical instability, shipping bottlenecks, and market concentration.
+- **Procurement AI:** Recommends alternative suppliers to mitigate critical vulnerabilities.
+
+### 4. Real-Time Event Driven (Kafka + Redis + WebSockets)
+- **Cache Invalidation:** Redis caches complex graph traversals to ensure sub-100ms response times. Kafka events instantly invalidate stale caches.
+- **Live UI Updates:** WebSockets push live anomaly alerts directly to the React frontend.
 
 ---
 
-## 🚀 Environment Launch Instructions
+## 🛠️ Tech Stack
 
-### 1. Infrastructure Setup
+- **Backend:** Python, FastAPI, Pydantic, HTTPX
+- **Databases:** Neo4j (Graph), TimescaleDB/PostgreSQL (Time-Series), Redis (Cache)
+- **Message Broker:** Apache Kafka / Zookeeper
+- **Frontend:** React, TypeScript, Vite, Tailwind CSS, Lucide Icons, Custom SVG Graph Engine
+- **Deployment:** Docker Compose
 
-Spin up the local containerized databases, brokers, and event pipelines:
+---
+
+## 💻 Running the Project (Verified Startup Sequence)
+
+### 1. Prerequisites
+- Docker and Docker Compose installed
+- Node.js (v18+) and npm
+- Python 3.10+
+- Virtual environment support (`venv` or `uv`)
+
+### 2. Environment Setup
+
+It is recommended to use virtual environments for the Python applications.
 
 ```bash
-docker-compose up -d
-
-```
-
-*(Optional: Verify Kafka topics are created by checking the setup logs: `docker logs -f kafka_setup`)*
-
-### 2. Initialize TimescaleDB Hypertables
-
-From the backend directory, provision your IoT tracking schemas:
-
-```bash
+# Setup backend environment
 cd backend
-python -m app.db.init_timescale
-
-```
-
-### 3. Backend Setup
-
-```bash
-cd backend
-python -m venv .venv
-source .venv/bin/activate  # On Windows: .venv\Scripts\activate
+python -m venv venv
+# On Windows: .\venv\Scripts\activate
+# On Unix: source venv/bin/activate
 pip install -r requirements.txt
-uvicorn app.main:app --reload
 
+# Setup ML environment
+cd ../ml
+python -m venv venv
+# On Windows: .\venv\Scripts\activate
+# On Unix: source venv/bin/activate
+pip install -r requirements.txt
 ```
 
-*Access the API documentation at [http://localhost:8000/docs](http://localhost:8000/docs).*
+### 3. Runtime Dependency Graph
 
-### 4. Frontend Setup
+```mermaid
+graph TD
+    Docker[Docker Compose]
+        ↓
+    Infra[Infrastructure: Kafka, MQTT, TimescaleDB, Neo4j, Redis]
+        ↓
+    DBInit[Database Initialization: TimescaleDB]
+        ↓
+    ML[ML Pipeline Execution]
+        ↓
+    Backend[FastAPI Backend: API, Consumers, Producers, WebSockets]
+        ↓
+    Frontend[Vite React Frontend]
+```
 
+### 4. Complete Terminal-by-Terminal Startup
+
+The platform requires several processes to run concurrently. Please open 4 separate terminal windows.
+
+| Terminal | Working Directory | Environment | Command | Purpose | Mandatory |
+|----------|-------------------|-------------|---------|---------|-----------|
+| **Term 1** | Project Root | System | `docker-compose up -d` | Starts all infrastructure services | **Yes** |
+| **Term 2** | `backend` | Backend venv | `python -m app.db.init_timescale` | Initializes TimescaleDB schemas | **Yes** |
+| **Term 3** | `ml` | ML venv | `python run_all.py` | Trains ML models, generates data | **Yes** |
+| **Term 2** | `backend` | Backend venv | `python -m scripts.seed_sustainability`<br>`python -m scripts.seed_supply_chain` | Seeds sustainability and Neo4j supply chain graph data | No |
+| **Term 2** | `backend` | Backend venv | `uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload` | Starts the unified API and Streaming engine | **Yes** |
+| **Term 4** | `frontend` | System | `npm install`<br>`npm run dev` | Starts the React frontend | **Yes** |
+
+*(Note: The FastAPI backend automatically initializes the MQTT bridge, Kafka producers/consumers, and WebSocket broadcaster during startup.)*
+
+### 5. Runtime Verification
+
+After starting all services, you can verify system health using the following methods:
+
+**1. Infrastructure & Databases:**
+- Check Docker: `docker-compose ps`
+- Redis: `docker exec -it redis_cache redis-cli ping` (should return PONG)
+
+**2. Backend & API Services:**
+- **Health Endpoints:** Navigate to `http://localhost:8000/api/health` and `http://localhost:8000/api/health/neo4j` to verify backend connectivity.
+- **Swagger Documentation:** Available at `http://localhost:8000/docs`
+
+**3. Frontend Application:**
+- Navigate to `http://localhost:5173` (or the port Vite provides) to interact with the Dashboard, Supply Chain map, and Risk visualizations.
+
+### 6. Shutdown Sequence
+
+To gracefully shut down the application:
+1. Stop the Frontend (Ctrl+C in Terminal 4).
+2. Stop the Backend (Ctrl+C in Terminal 2).
+3. Shut down infrastructure and remove volumes (to reset state):
 ```bash
-cd frontend
-npm install
-npm run dev
-
+docker-compose down -v
 ```
 
-*Access the control dashboard interface at [http://localhost:3000](http://localhost:3000).*
+### 7. Troubleshooting
 
-### 5. Running the End-to-End Pipeline
-
-Open three separate terminal windows, activate your virtual environment, and execute these components in order to see telemetry route in real-time:
-
-* **Terminal 1 (Destination Database Engine):** `python infrastructure/kafka/consumers/db_writer.py`
-* **Terminal 2 (MQTT-to-Kafka Stream Router):** `python infrastructure/kafka/mqtt_kafka_bridge.py`
-* **Terminal 3 (Synthetic Sensor Stream Simulator):** `python ml/simulator/simulator.py`
+- **Kafka Connection Errors:** Ensure the `kafka-setup` container has finished executing by checking `docker logs kafka_setup`.
+- **Database Initialization Fails:** Verify that `timescaledb` and `neo4j` containers are fully ready before running `init_timescale.py`.
+- **Cache/Graph Synchronization Issues:** Restarting the backend (`Term 2`) will often resolve transient state inconsistencies if the cache was polluted prior to Neo4j readiness.
+- **Windows `NotImplementedError` (Loop Policy Issues):** On Windows, `aiomqtt` requires `SelectorEventLoop` instead of the default `ProactorEventLoop`. The repository includes a `sitecustomize.py` file to automatically patch this. To ensure uvicorn subprocesses correctly pick it up during hot-reloads, always run the server with the `PYTHONPATH` environment variable set to the `backend` directory (e.g. `$env:PYTHONPATH="backend"` in PowerShell, or `set PYTHONPATH=backend` in CMD, or `PYTHONPATH=backend` on Unix/Git Bash).
 
 ---
 
-## 🖥️ What to Expect: Frontend Live Experience
+## 📚 API Reference Overview
 
-Once your environment is completely launched and the backend simulators are broadcasting data, the frontend application provides a high-fidelity workspace:
+A full interactive OpenAPI specification is available at `http://localhost:8000/docs`. Key namespaces include:
 
-### 📊 Real-Time Telemetry Performance Counters
-
-* **Ingestion Metrics:** The upper banner displays a live processing widget displaying real-time text such as `Ingesting: 4 Telemetry msg/sec`. This guarantees the active telemetry pipeline is communicating correctly.
-* **Synchronized States:** The **Active Assets**, **Average SoC**, and **Health Index** panels update instantly as new frames land from the network thread.
-
-### 🗺️ Live Dark-Mesh Geospatial Telemetry Map
-
-* **Automatic Viewport Centering:** The integrated map dynamically handles multi-vehicle tracking bounds via an automated map bounding-box algorithm (`MapUpdater`). It automatically centers and pans around your live active vehicles.
-* **Interactive Layer Markers:** Map markers override default legacy graphics with modern glowing DOM circles containing animated custom ping rings indicating live connectivity.
-* **Dynamic Status Coloring:** Healthy nodes render in **Emerald Green**, while any asset suffering structural anomalies (e.g., motor temperatures crossing over `40.0°C`) automatically updates its state inside the state engine, instantly rendering as a **Blinking Red Alert Marker** on the canvas. Clicking any marker reveals an analytical diagnostic pop-up block.
-
-### 📋 Fleet Telemetry Data Grid
-
-* The main interface features an exhaustive asset grid logging **Speed**, **Exact Location Coordinates**, **Motor Temperatures**, and **Torque Loads**.
-* Columns update dynamically without interface stuttering or full-page rendering cycles, featuring colored indicators mapping back to warning flags.
-
-```
+- **`/api/v1/sustainability/*`**: TimescaleDB endpoints for fleet carbon tracking and battery health.
+- **`/api/v1/supply-chain/dashboard/*`**: Cached Neo4j graph aggregates.
+- **`/api/v1/supply-chain/traceability`**: Deep-traversal material lineage.
+- **`/api/v1/supply-chain/risk`**: ML-generated risk metrics.
+- **`/api/v1/supply-chain/recommendations`**: Procurement diversification suggestions.

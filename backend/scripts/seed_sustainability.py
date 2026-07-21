@@ -8,7 +8,7 @@ import logging
 # Ensure the backend directory is in the path
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
-from app.db.session import AsyncSessionLocal
+from app.db.session import AsyncSessionLocal, engine
 from app.services.sustainability import CarbonService, ReadinessService, ProcurementService
 from app.schemas.sustainability import (
     CarbonCalculationRequest,
@@ -121,14 +121,16 @@ async def run_procurement_tests(session):
 
 async def main():
     logger.info("Starting Sustainability Domain Seeder...")
-    
-    async with AsyncSessionLocal() as session:
-        # We append to the DB rather than clearing.
-        await seed_carbon_history(session)
-        await seed_readiness_assessments(session)
-        await run_procurement_tests(session)
-        
-    logger.info("Sustainability data seeding complete.")
+    try:
+        async with AsyncSessionLocal() as session:
+            # We append to the DB rather than clearing.
+            await seed_carbon_history(session)
+            await seed_readiness_assessments(session)
+            await run_procurement_tests(session)
+            
+        logger.info("Sustainability data seeding complete.")
+    finally:
+        await engine.dispose()
 
 if __name__ == "__main__":
     if sys.platform.lower() == "win32" or os.name.lower() == "nt":

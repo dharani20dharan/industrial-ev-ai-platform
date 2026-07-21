@@ -9,11 +9,33 @@ export function useFleetData() {
   const reconnectRef = useRef<NodeJS.Timeout | null>(null);
   const counterRef = useRef(0);
 
+  // Initial REST fetch to seed active vehicles immediately
+  useEffect(() => {
+    const fetchInitialVehicles = async () => {
+      try {
+        const res = await fetch("http://localhost:8000/api/v1/simulator/vehicles");
+        if (res.ok) {
+          const data = await res.json();
+          const vehicles = data.vehicles || [];
+          const initialMap: Record<string, any> = {};
+          vehicles.forEach((v: any) => {
+            if (v.vehicle_id) {
+              initialMap[v.vehicle_id] = v;
+            }
+          });
+          setFleet((prev) => ({ ...initialMap, ...prev }));
+        }
+      } catch (err) {
+        console.warn("Initial REST vehicle fetch skipped:", err);
+      }
+    };
+    fetchInitialVehicles();
+  }, []);
+
   useEffect(() => {
     let isMounted = true;
 
     function connect() {
-      // Don't build a new socket if one is already connecting or fully open
       if (
         socketRef.current &&
         (socketRef.current.readyState === WebSocket.CONNECTING || socketRef.current.readyState === WebSocket.OPEN)
@@ -29,7 +51,7 @@ export function useFleetData() {
           socket.close();
           return;
         }
-        console.log('📡 Telemetry matrix connection established successfully.');
+        console.log('📡 Live simulator telemetry matrix stream connected.');
       };
 
       socket.onmessage = (event) => {
@@ -37,32 +59,33 @@ export function useFleetData() {
         counterRef.current++;
         try {
           const data = JSON.parse(event.data);
+
+          if (data.type === 'HEARTBEAT') return;
+
           const vId = data.vehicle_id;
           if (!vId) return;
 
-          // 1. Detect temperature using both payload variants
-          const temp = data.motor_temperature_c || data.temperature;
+          const temp = data.motor_temperature_c || data.temperature || data.cell_temp || 35.0;
+          const statusFlag = data.status || data.driving_state || (data.is_charging ? "CHARGING" : data.is_moving ? "DRIVING" : "IDLE");
 
-          // 2. Dynamically assign the status flag so the Map and Table UI can read it
-          let assetStatus = data.status || "Active";
-          if (temp > 40.0) {
-            assetStatus = "Critical";
-          }
+          const updatedData = {
+            ...data,
+            status: statusFlag,
+            motor_temperature_c: temp
+          };
 
-          // 3. Save the modified object with the updated status flag
-          const updatedData = { ...data, status: assetStatus };
           setFleet((prev) => ({ ...prev, [vId]: updatedData }));
 
-          // 4. Handle Alert Stack
-          if (temp > 40.0) {
+          // Anomaly/Alert stack
+          if (data.active_anomaly || temp > 65.0) {
             setAlerts((prev) => [
               {
                 asset: vId,
-                type: 'Critical', // Changed to match your critical check
-                msg: `High operational anomaly detected: ${temp.toFixed(1)}°C`,
+                type: 'Critical',
+                msg: data.active_anomaly ? `Anomaly: ${data.active_anomaly}` : `High temp anomaly: ${temp.toFixed(1)}°C`,
                 timestamp: new Date().toLocaleTimeString()
               },
-              ...prev.slice(0, 9)
+              ...prev.filter(a => a.asset !== vId).slice(0, 9)
             ]);
           }
         } catch (e) {
@@ -71,20 +94,14 @@ export function useFleetData() {
       };
 
       socket.onclose = (event) => {
-        // If the component was unmounted, ignore drop notices and drop retry scheduling
         if (!isMounted) return;
-
         socketRef.current = null;
-        console.warn(`Connection dropped (Code: ${event.code}). Retrying downstream handshake...`);
-
         if (reconnectRef.current) clearTimeout(reconnectRef.current);
         reconnectRef.current = setTimeout(connect, 3000);
       };
 
       socket.onerror = (error) => {
-        // Suppress noisy trace logging if it's just the clean strict-mode teardown drop
         if (!isMounted) return;
-        console.error('WebSocket connection error intercepted:', error);
       };
     }
 
@@ -102,7 +119,6 @@ export function useFleetData() {
       clearInterval(interval);
       if (reconnectRef.current) clearTimeout(reconnectRef.current);
       if (socketRef.current) {
-        // Clean up the instance cleanly
         const ws = socketRef.current;
         ws.onopen = null;
         ws.onmessage = null;

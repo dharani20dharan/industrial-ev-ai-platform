@@ -114,20 +114,20 @@ export function DieselComparison() {
         <div className="mt-4 pt-4 border-t border-border grid grid-cols-2 gap-4 animate-fade-in">
           <div className="p-3 bg-red-500/10 rounded-lg border border-red-500/20">
             <span className="block text-xs text-red-400 font-semibold mb-1">Diesel Emissions</span>
-            <span className="text-xl font-bold">{result.diesel_emission.toFixed(1)} kg</span>
+            <span className="text-xl font-bold">{(result.diesel_emission ?? 0).toFixed(1)} kg</span>
           </div>
           <div className="p-3 bg-emerald-500/10 rounded-lg border border-emerald-500/20">
             <span className="block text-xs text-emerald-400 font-semibold mb-1">EV Emissions</span>
-            <span className="text-xl font-bold">{result.ev_emission.toFixed(1)} kg</span>
+            <span className="text-xl font-bold">{(result.ev_emission ?? 0).toFixed(1)} kg</span>
           </div>
           <div className="col-span-2 p-3 bg-blue-500/10 rounded-lg border border-blue-500/20 flex justify-between items-center">
             <div>
               <span className="block text-xs text-blue-400 font-semibold mb-1">Net Savings</span>
-              <span className="text-xl font-bold text-blue-400">{result.carbon_saved.toFixed(1)} kg CO₂</span>
+              <span className="text-xl font-bold text-blue-400">{(result.carbon_saved ?? 0).toFixed(1)} kg CO₂</span>
             </div>
             <div className="text-right">
               <span className="block text-xs text-blue-400/80 mb-1">Reduction</span>
-              <span className="text-xl font-bold text-blue-400">{result.reduction_percentage.toFixed(1)}%</span>
+              <span className="text-xl font-bold text-blue-400">{(result.reduction_percentage ?? 0).toFixed(1)}%</span>
             </div>
           </div>
         </div>

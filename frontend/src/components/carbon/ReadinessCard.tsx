@@ -116,7 +116,7 @@ export function ReadinessCard() {
         <div className="mt-4 pt-4 border-t border-border animate-fade-in space-y-4">
           <div className="flex justify-between items-center">
             <div>
-              <span className="block text-2xl font-bold">{result.readiness_score.toFixed(0)}/100</span>
+              <span className="block text-2xl font-bold">{(result.readiness_score ?? 0).toFixed(0)}/100</span>
               <span className="text-xs text-muted-foreground">Readiness Score</span>
             </div>
             <span className={`text-xs font-bold px-3 py-1.5 rounded-full border ${getLevelColor(result.readiness_level)}`}>

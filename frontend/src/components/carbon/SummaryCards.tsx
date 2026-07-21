@@ -62,12 +62,16 @@ export function SummaryCards({ latestReport }: SummaryCardsProps) {
 
   if (!summary) return null;
 
-  const carbonSavedTons = (summary.total_carbon_saved_kg / 1000).toFixed(1);
-  const treesPlanted = Math.floor(summary.total_carbon_saved_kg / 22);
-  const totalEmissions = summary.scope1_emission_kg + summary.scope3_emission_kg;
+  const totalSaved = Number(summary.total_carbon_saved_kg ?? (summary as any).total_saved ?? 0);
+  const scope1 = Number(summary.scope1_emission_kg ?? (summary as any).scope1_emission ?? 0);
+  const scope3 = Number(summary.scope3_emission_kg ?? (summary as any).scope3_emission ?? 0);
+
+  const carbonSavedTons = (totalSaved / 1000).toFixed(1);
+  const treesPlanted = Math.floor(totalSaved / 22);
+  const totalEmissions = scope1 + scope3;
   const reductionPercentage = totalEmissions > 0 
-    ? ((summary.total_carbon_saved_kg / (summary.total_carbon_saved_kg + totalEmissions)) * 100).toFixed(1)
-    : 0;
+    ? ((totalSaved / (totalSaved + totalEmissions)) * 100).toFixed(1)
+    : '0.0';
 
   return (
     <div className="grid grid-cols-1 md:grid-cols-3 gap-6">

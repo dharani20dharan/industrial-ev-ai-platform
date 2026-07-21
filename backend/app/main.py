@@ -95,6 +95,13 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         print(f"[WARN] Failed to connect to Neo4j Database: {e}")
 
+    try:
+        from ml.simulator.controller_server import simulator_engine
+        simulator_engine.start()
+        print("[INFO] Simulator Engine auto-started successfully.")
+    except Exception as e:
+        print(f"[WARN] Failed to auto-start Simulator Engine: {e}")
+
     print(">>> FastAPI Enterprise Platform Streaming Engine Running (Offline Fallbacks Active) <<<")
     yield
 

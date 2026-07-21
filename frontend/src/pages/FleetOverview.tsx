@@ -1,48 +1,24 @@
-import React, { useMemo } from 'react';
-import { Truck, Battery, AlertTriangle, ShieldCheck, Activity, Navigation } from 'lucide-react';
+import { useMemo, useState } from 'react';
+import { Truck, Battery, AlertTriangle, Activity, Navigation, Zap, PauseCircle } from 'lucide-react';
 import { useFleetData } from '../hooks/useFleetData';
+import FleetMap, { FleetMapVehicle } from '../components/maps/FleetMap';
+import VehicleInspector from '../components/simulator/VehicleInspector';
 
-// Leaflet UI Engine Components
-import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet';
-import L from 'leaflet';
-
-// Core Map Controller Component to smoothly pan the camera to the main cluster
-function MapUpdater({ coordinates }: { coordinates: [number, number][] }) {
-  const map = useMap();
-  React.useEffect(() => {
-    if (coordinates.length > 0) {
-      const bounds = L.latLngBounds(coordinates);
-      map.fitBounds(bounds, { padding: [40, 40], maxZoom: 14 });
-    }
-  }, [coordinates, map]);
-  return null;
+function extractStatusString(v: any): string {
+  if (!v) return 'IDLE';
+  if (typeof v.status === 'string') return v.status.toUpperCase();
+  if (v.status && typeof v.status.operational_status === 'string') return v.status.operational_status.toUpperCase();
+  if (typeof v.driving_state === 'string') return v.driving_state.toUpperCase();
+  if (v.is_charging) return 'CHARGING';
+  if (v.is_moving) return 'DRIVING';
+  return 'IDLE';
 }
-
-// Factory function to build custom DOM-styled markers that bypass Leaflet's blue legacy images
-const createCustomMarker = (status: string) => {
-  let colorClass = "bg-emerald-400 ring-emerald-500/30";
-  if (status === "Critical") colorClass = "bg-red-500 ring-red-500/50 animate-pulse";
-  if (status === "Warning") colorClass = "bg-amber-400 ring-amber-500/30";
-  if (status === "Charging") colorClass = "bg-blue-400 ring-blue-500/30 animate-pulse";
-
-  return L.divIcon({
-    className: 'custom-leaflet-marker',
-    html: `
-      <div class="relative flex items-center justify-center w-6 h-6">
-        <div class="absolute w-6 h-6 rounded-full ring-4 opacity-40 animate-ping ${colorClass}"></div>
-        <div class="w-3 h-3 rounded-full border-2 border-slate-900 shadow-md ${colorClass}"></div>
-      </div>
-    `,
-    iconSize: [24, 24],
-    iconAnchor: [12, 12]
-  });
-};
 
 export default function FleetOverview() {
   const { fleet, alerts, msgPerSec } = useFleetData();
+  const [selectedVehicleId, setSelectedVehicleId] = useState<string | undefined>();
 
-  // LATENCY PROTECTION: Memoize aggregate operations so 5 concurrent
-  // high-frequency WebSocket vehicles don't cause browser execution chokes.
+  // Memoize active vehicles list
   const activeAssets = useMemo(() => Object.values(fleet), [fleet]);
 
   const criticalCount = useMemo(() =>
@@ -50,20 +26,62 @@ export default function FleetOverview() {
     [alerts]
   );
 
-  const defaultFleet = useMemo(() => [
-    { id: "EV-HD-001", fallbackStatus: "Active", defaultLat: 37.7749, defaultLng: -122.4194 },
-    { id: "EV-HD-002", fallbackStatus: "Charging", defaultLat: 37.7833, defaultLng: -122.4167 },
-    { id: "EV-HD-003", fallbackStatus: "Active", defaultLat: 37.7699, defaultLng: -122.4468 },
-    { id: "EV-HD-004", fallbackStatus: "Warning", defaultLat: 37.7599, defaultLng: -122.4368 },
-  ], []);
+  // Dynamic Metrics Calculation
+  const metrics = useMemo(() => {
+    let totalSoC = 0;
+    let totalSpeed = 0;
+    let drivingCount = 0;
+    let chargingCount = 0;
+    let idleCount = 0;
+    let faultCount = 0;
 
-  // Compute active coordinates array dynamically to feed the automated viewport framing calculations
-  const mapCoordinates = useMemo<[number, number][]>(() =>
-    defaultFleet.map(v => {
-      const liveData = fleet[v.id];
-      return [liveData?.latitude || v.defaultLat, liveData?.longitude || v.defaultLng];
-    }),
-    [fleet, defaultFleet]
+    activeAssets.forEach(v => {
+      totalSoC += (v.soc || 0);
+      totalSpeed += (v.speed_kph || 0);
+      const status = extractStatusString(v);
+      if (status === 'CHARGING' || v.is_charging) chargingCount++;
+      else if (status === 'FAULT' || status === 'CRITICAL' || v.active_anomaly) faultCount++;
+      else if (status === 'IDLE' || (!v.is_moving && !v.is_charging)) idleCount++;
+      else drivingCount++;
+    });
+
+    const count = activeAssets.length || 1;
+    return {
+      avgSoc: (totalSoC / count).toFixed(1),
+      avgSpeed: (totalSpeed / count).toFixed(1),
+      drivingCount,
+      chargingCount,
+      idleCount,
+      faultCount
+    };
+  }, [activeAssets]);
+
+  // Format fleet data into standardized FleetMapVehicle array
+  const mapVehicles = useMemo<FleetMapVehicle[]>(() =>
+    activeAssets.map(liveData => ({
+      vehicle_id: liveData.vehicle_id,
+      fleet_id: liveData.fleet_id || "FLT-ALPHA-01",
+      profile_name: liveData.profile_name || "DELIVERY",
+      vehicle_type: liveData.vehicle_type || "DELIVERY_VAN",
+      latitude: liveData.latitude,
+      longitude: liveData.longitude,
+      status: extractStatusString(liveData),
+      speed_kph: liveData.speed_kph,
+      heading: liveData.heading || liveData.heading_deg,
+      motor_temperature_c: liveData.motor_temperature_c || liveData.temperature,
+      cell_temp: liveData.cell_temp,
+      soc: liveData.soc,
+      soh: liveData.soh,
+      voltage: liveData.voltage,
+      current_amps: liveData.current_amps,
+      power_kw: liveData.power_kw,
+      is_charging: liveData.is_charging,
+      is_moving: liveData.is_moving,
+      driving_state: liveData.driving_state,
+      active_anomaly: liveData.active_anomaly,
+      last_updated: liveData.timestamp
+    })),
+    [activeAssets]
   );
 
   return (
@@ -71,12 +89,12 @@ export default function FleetOverview() {
       {/* Header View Row */}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
-          <h1 className="text-3xl font-extrabold tracking-tight">Fleet Asset Intelligence</h1>
-          <p className="text-muted-foreground mt-1">Real-time status, health index, and predictive alerts for industrial EV assets.</p>
+          <h1 className="text-3xl font-extrabold tracking-tight">Fleet Asset Operations</h1>
+          <p className="text-muted-foreground mt-1">Single source of truth live telemetry monitoring, asset health, and geospatial operations.</p>
         </div>
         <div className="flex items-center gap-2 bg-muted/50 px-3 py-1.5 rounded-lg text-xs font-medium border border-border">
           <Activity className="h-4.5 w-4.5 text-blue-500 animate-pulse" />
-          <span>Ingesting: {msgPerSec || 1} Telemetry msg/sec</span>
+          <span>Ingesting: {msgPerSec || 0} Telemetry msg/sec</span>
         </div>
       </div>
 
@@ -88,19 +106,36 @@ export default function FleetOverview() {
             <div className="p-2 bg-blue-500/10 rounded-lg text-blue-500"><Truck className="h-5 w-5" /></div>
           </div>
           <div className="mt-4 flex items-baseline gap-2">
-            <span className="text-3xl font-bold">{Math.max(4, activeAssets.length)}</span>
-            <span className="text-xs text-emerald-500 font-medium">100% Monitored</span>
+            <span className="text-3xl font-bold">{activeAssets.length}</span>
+            <span className="text-xs text-emerald-500 font-medium">Online</span>
+          </div>
+          <div className="mt-3 grid grid-cols-4 gap-1 text-[10px] font-medium text-center">
+             <div className="bg-blue-500/10 text-blue-400 rounded py-1">{metrics.drivingCount} Driving</div>
+             <div className="bg-emerald-500/10 text-emerald-400 rounded py-1">{metrics.chargingCount} Charging</div>
+             <div className="bg-amber-500/10 text-amber-400 rounded py-1">{metrics.idleCount} Idle</div>
+             <div className="bg-red-500/10 text-red-400 rounded py-1">{metrics.faultCount} Fault</div>
           </div>
         </div>
 
         <div className="glass p-5 rounded-xl">
           <div className="flex items-center justify-between">
-            <span className="text-sm font-semibold text-muted-foreground">Average SoC</span>
+            <span className="text-sm font-semibold text-muted-foreground">Average Fleet SoC</span>
             <div className="p-2 bg-emerald-500/10 rounded-lg text-emerald-500"><Battery className="h-5 w-5" /></div>
           </div>
           <div className="mt-4 flex items-baseline gap-2">
-            <span className="text-3xl font-bold">78.4%</span>
-            <span className="text-xs text-muted-foreground">Healthy Charging</span>
+            <span className="text-3xl font-bold">{activeAssets.length > 0 ? metrics.avgSoc : '--'}%</span>
+            <span className="text-xs text-muted-foreground">Active Fleet Avg</span>
+          </div>
+        </div>
+        
+        <div className="glass p-5 rounded-xl">
+          <div className="flex items-center justify-between">
+            <span className="text-sm font-semibold text-muted-foreground">Average Fleet Speed</span>
+            <div className="p-2 bg-cyan-500/10 rounded-lg text-cyan-500"><Navigation className="h-5 w-5" /></div>
+          </div>
+          <div className="mt-4 flex items-baseline gap-2">
+            <span className="text-3xl font-bold">{activeAssets.length > 0 ? metrics.avgSpeed : '--'}</span>
+            <span className="text-xs text-muted-foreground">km/h</span>
           </div>
         </div>
 
@@ -111,128 +146,147 @@ export default function FleetOverview() {
           </div>
           <div className="mt-4 flex items-baseline gap-2">
             <span className="text-3xl font-bold">{criticalCount}</span>
-            <span className="text-xs text-red-500 font-semibold">Critical Risks Active</span>
-          </div>
-        </div>
-
-        <div className="glass p-5 rounded-xl">
-          <div className="flex items-center justify-between">
-            <span className="text-sm font-semibold text-muted-foreground">Avg Fleet Health Index</span>
-            <div className="p-2 bg-emerald-500/10 rounded-lg text-emerald-500"><ShieldCheck className="h-5 w-5" /></div>
-          </div>
-          <div className="mt-4 flex items-baseline gap-2">
-            <span className="text-3xl font-bold">92.8%</span>
-            <span className="text-xs text-emerald-500 font-medium">+1.2% this week</span>
+            <span className="text-xs text-red-500 font-semibold">Active Critical Anomalies</span>
           </div>
         </div>
       </div>
 
-      {/* Live Geospatial Real Map Layer Section */}
-      <div className="glass rounded-xl overflow-hidden p-5">
-        <div className="flex items-center gap-2 mb-4">
-          <Navigation className="h-5 w-5 text-blue-400" />
-          <h2 className="text-lg font-semibold">Live Geospatial Telemetry Layer</h2>
+      {/* Main Map & Vehicle Inspector Grid */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className={`glass rounded-xl overflow-hidden p-5 ${selectedVehicleId ? 'lg:col-span-2' : 'lg:col-span-3'}`}>
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-2">
+              <Navigation className="h-5 w-5 text-blue-400" />
+              <h2 className="text-lg font-semibold">Live Geospatial Telemetry Map</h2>
+            </div>
+            {selectedVehicleId && (
+              <button 
+                onClick={() => setSelectedVehicleId(undefined)}
+                className="text-xs bg-slate-800 hover:bg-slate-700 text-slate-300 px-3 py-1 rounded transition-colors"
+              >
+                Clear Selection
+              </button>
+            )}
+          </div>
+
+          <FleetMap
+            vehicles={mapVehicles}
+            selectedVehicleId={selectedVehicleId}
+            onSelectVehicle={setSelectedVehicleId}
+            height="h-[460px]"
+            defaultCenter={[28.6139, 77.2090]}
+            defaultZoom={12}
+          />
         </div>
 
-        <div className="h-96 w-full rounded-lg overflow-hidden border border-border bg-slate-900 z-10 relative">
-          <MapContainer
-            center={[37.7749, -122.4194]}
-            zoom={13}
-            className="h-full w-full"
-            style={{ background: '#0f172a' }}
-          >
-            <TileLayer
-              attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>'
-              url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
+        {/* Vehicle Inspector Drawer when a vehicle is selected */}
+        {selectedVehicleId && (
+          <div className="lg:col-span-1">
+            <VehicleInspector 
+              vehicleId={selectedVehicleId} 
+              onClose={() => setSelectedVehicleId(undefined)} 
             />
-
-            {defaultFleet.map((v) => {
-              const liveData = fleet[v.id];
-              const lat = liveData?.latitude || v.defaultLat;
-              const lng = liveData?.longitude || v.defaultLng;
-              const currentStatus = liveData ? liveData.status : v.fallbackStatus;
-
-              return (
-                <Marker
-                  key={`real-map-${v.id}`}
-                  position={[lat, lng]}
-                  icon={createCustomMarker(currentStatus)}
-                >
-                  <Popup className="custom-map-popup">
-                    <div className="p-1 font-mono text-xs text-slate-200">
-                      <strong className="text-blue-400 block mb-1">{v.id}</strong>
-                      <div className="space-y-0.5">
-                        <div>Speed: {liveData?.speed_kph !== undefined ? `${liveData.speed_kph.toFixed(1)} kph` : '72.0 kph'}</div>
-                        <div>Temp: {liveData?.motor_temperature_c !== undefined ? `${liveData.motor_temperature_c.toFixed(1)}°C` : '38.5°C'}</div>
-                        <div>Status: <span className="font-bold uppercase text-[10px]">{currentStatus}</span></div>
-                      </div>
-                    </div>
-                  </Popup>
-                </Marker>
-              );
-            })}
-
-            <MapUpdater coordinates={mapCoordinates} />
-          </MapContainer>
-        </div>
+          </div>
+        )}
       </div>
 
-      {/* Detailed Live Fleet Table */}
+      {/* Detailed Live Fleet Operations Table */}
       <div className="glass rounded-xl overflow-hidden">
-        <div className="px-6 py-5 border-b border-border">
-          <h2 className="text-lg font-semibold">Real-Time Vehicle Assets Status</h2>
+        <div className="px-6 py-5 border-b border-border flex justify-between items-center">
+          <div>
+            <h2 className="text-lg font-semibold">Live Fleet Operations Table</h2>
+            <p className="text-xs text-muted-foreground mt-0.5">Select any row to focus map marker and view full electro-chemical diagnostics</p>
+          </div>
+          <span className="text-xs font-semibold text-muted-foreground bg-muted/60 px-3 py-1.5 rounded-lg border border-border">
+            Total Active Assets: {activeAssets.length}
+          </span>
         </div>
-        <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse">
-            <thead>
-              <tr className="border-b border-border bg-muted/30 text-xs uppercase tracking-wider text-muted-foreground">
+        <div className="overflow-x-auto max-h-[500px] overflow-y-auto">
+          <table className="w-full text-left border-collapse relative">
+            <thead className="sticky top-0 z-20 glass">
+              <tr className="border-b border-border bg-slate-900/90 text-xs uppercase tracking-wider text-slate-400">
                 <th className="px-6 py-4">Asset ID</th>
+                <th className="px-6 py-4">Fleet</th>
+                <th className="px-6 py-4">Profile</th>
+                <th className="px-6 py-4">State</th>
                 <th className="px-6 py-4">Speed</th>
-                <th className="px-6 py-4">Live Location (Lat, Lon)</th>
-                <th className="px-6 py-4">Avg Motor Temp</th>
-                <th className="px-6 py-4">Torque Load</th>
-                <th className="px-6 py-4">Status Flag</th>
+                <th className="px-6 py-4">Battery SoC</th>
+                <th className="px-6 py-4">Motor Temp</th>
+                <th className="px-6 py-4">Live Location</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-border text-sm">
-              {defaultFleet.map((v) => {
-                const liveData = fleet[v.id];
+              {activeAssets.length === 0 ? (
+                <tr>
+                  <td colSpan={8} className="px-6 py-12 text-center text-muted-foreground">
+                    <div className="flex flex-col items-center justify-center">
+                      <Truck className="h-10 w-10 text-slate-700 mb-3" />
+                      <p>No active vehicles detected in simulation runtime.</p>
+                      <p className="text-xs mt-1 text-slate-500">Go to Simulation Controller to spawn fleets or scenarios.</p>
+                    </div>
+                  </td>
+                </tr>
+              ) : (
+                activeAssets.map((liveData) => {
+                  const speedDisplay = liveData.speed_kph !== undefined ? `${liveData.speed_kph.toFixed(1)} km/h` : '0.0 km/h';
+                  const tempDisplay = liveData.motor_temperature_c !== undefined ? `${liveData.motor_temperature_c.toFixed(1)}°C` : 'N/A';
+                  const socDisplay = liveData.soc !== undefined ? `${liveData.soc.toFixed(1)}%` : 'N/A';
+                  
+                  const locationDisplay = liveData.latitude && liveData.longitude
+                    ? `${liveData.latitude.toFixed(4)}, ${liveData.longitude.toFixed(4)}`
+                    : `Unknown`;
 
-                const speedDisplay = liveData?.speed_kph !== undefined ? `${liveData.speed_kph.toFixed(1)} kph` : '72.0 kph';
-                const tempDisplay = liveData?.motor_temperature_c !== undefined ? `${liveData.motor_temperature_c.toFixed(1)}°C` : '38.5°C';
-                const torqueDisplay = liveData?.torque_nm !== undefined ? `${liveData.torque_nm.toFixed(1)} Nm` : '210 Nm';
+                  const currentStatus = extractStatusString(liveData);
+                  const isCritical = currentStatus === 'CRITICAL' || currentStatus === 'FAULT' || !!liveData.active_anomaly;
+                  const isWarning = currentStatus === 'WARNING';
+                  const isCharging = currentStatus === 'CHARGING' || liveData.is_charging;
+                  const isSelected = selectedVehicleId === liveData.vehicle_id;
 
-                const locationDisplay = liveData?.latitude && liveData?.longitude
-                  ? `${liveData.latitude.toFixed(4)}, ${liveData.longitude.toFixed(4)}`
-                  : `${v.defaultLat.toFixed(4)}, ${v.defaultLng.toFixed(4)}`;
-
-                const currentStatus = liveData ? liveData.status : v.fallbackStatus;
-                const isCritical = currentStatus === 'Critical';
-                const isWarning = currentStatus === 'Warning';
-
-                return (
-                  <tr key={v.id} className="hover:bg-muted/10 transition-colors">
-                    <td className="px-6 py-4 font-mono font-medium">{v.id}</td>
-                    <td className="px-6 py-4 font-mono">{speedDisplay}</td>
-                    <td className="px-6 py-4 font-mono text-xs text-blue-400 font-semibold">
-                      {locationDisplay}
-                    </td>
-                    <td className={`px-6 py-4 font-mono font-semibold ${isCritical ? 'text-red-400 animate-pulse' : isWarning ? 'text-yellow-400' : ''}`}>
-                      {tempDisplay}
-                    </td>
-                    <td className="px-6 py-4 font-mono">{torqueDisplay}</td>
-                    <td className="px-6 py-4">
-                      <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-semibold ${
-                        isCritical ? 'bg-red-500/10 text-red-500 animate-pulse' :
-                        isWarning ? 'bg-yellow-500/10 text-yellow-500' :
-                        'bg-emerald-500/10 text-emerald-500'
-                      }`}>
-                        {currentStatus}
-                      </span>
-                    </td>
-                  </tr>
-                );
-              })}
+                  return (
+                    <tr 
+                      key={liveData.vehicle_id} 
+                      onClick={() => setSelectedVehicleId(liveData.vehicle_id)}
+                      className={`transition-colors cursor-pointer border-l-2 ${
+                        isSelected 
+                          ? 'bg-blue-500/15 border-blue-500 font-semibold' 
+                          : 'border-transparent hover:bg-slate-800/50'
+                      }`}
+                    >
+                      <td className="px-6 py-3.5 font-mono font-bold text-slate-200">
+                        {liveData.vehicle_id}
+                      </td>
+                      <td className="px-6 py-3.5 text-xs text-slate-300">
+                        {liveData.fleet_id || "FLT-ALPHA-01"}
+                      </td>
+                      <td className="px-6 py-3.5 text-xs font-semibold text-slate-400">
+                        {liveData.profile_name || "DELIVERY"}
+                      </td>
+                      <td className="px-6 py-3.5">
+                        <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[10px] font-bold tracking-wider ${
+                          isCritical ? 'bg-rose-500/20 text-rose-400 border border-rose-500/40 animate-pulse' :
+                          isWarning ? 'bg-amber-500/20 text-amber-400 border border-amber-500/40' :
+                          isCharging ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/40' :
+                          currentStatus === 'IDLE' ? 'bg-slate-500/20 text-slate-400 border border-slate-500/40' :
+                          'bg-blue-500/20 text-blue-400 border border-blue-500/40'
+                        }`}>
+                          {isCharging && <Zap className="w-3 h-3" />}
+                          {currentStatus === 'IDLE' && <PauseCircle className="w-3 h-3" />}
+                          {currentStatus === 'DRIVING' && <Navigation className="w-3 h-3" />}
+                          {currentStatus}
+                        </span>
+                      </td>
+                      <td className="px-6 py-3.5 font-mono text-slate-300">{speedDisplay}</td>
+                      <td className="px-6 py-3.5 font-mono text-cyan-400">{socDisplay}</td>
+                      <td className={`px-6 py-3.5 font-mono ${isCritical ? 'text-rose-400 font-bold animate-pulse' : 'text-slate-300'}`}>
+                        {tempDisplay}
+                      </td>
+                      <td className="px-6 py-3.5 font-mono text-xs text-blue-400/90 font-semibold">
+                        {locationDisplay}
+                      </td>
+                    </tr>
+                  );
+                })
+              )}
             </tbody>
           </table>
         </div>

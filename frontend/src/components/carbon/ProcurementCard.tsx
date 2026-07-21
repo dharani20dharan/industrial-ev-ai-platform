@@ -101,7 +101,7 @@ export function ProcurementCard() {
           <div className="grid grid-cols-2 gap-3">
             <div className="p-3 bg-muted/20 rounded-lg border border-border/50">
               <span className="block text-[10px] uppercase text-muted-foreground font-semibold mb-1">Impact</span>
-              <span className="text-sm font-bold text-emerald-400">-{result.estimated_carbon_saving.toFixed(1)} Tons CO₂/yr</span>
+              <span className="text-sm font-bold text-emerald-400">-{(result.estimated_carbon_saving ?? 0).toFixed(1)} Tons CO₂/yr</span>
             </div>
             <div className="p-3 bg-muted/20 rounded-lg border border-border/50">
               <span className="block text-[10px] uppercase text-muted-foreground font-semibold mb-1">Confidence</span>

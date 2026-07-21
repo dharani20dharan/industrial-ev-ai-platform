@@ -61,7 +61,7 @@ class CarbonProcessor:
                     "payload": report_response.model_dump(mode="json")
                 }
                 
-                await kafka_to_ws_broadcaster(topic="ws.carbon.update", event_envelope=ws_envelope)
+                await kafka_to_ws_broadcaster(topic="ws.carbon.update", payload=ws_envelope)
                 
                 logger.info(f"CarbonProcessor: Successfully generated and broadcasted carbon report for {vehicle_id}")
 

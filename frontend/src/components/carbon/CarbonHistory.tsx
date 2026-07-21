@@ -88,36 +88,44 @@ export function CarbonHistory({ latestReport }: CarbonHistoryProps) {
       </div>
       
       <div className="mt-4 flex-1 overflow-y-auto space-y-3 pr-2 custom-scrollbar">
-        {history.map(report => (
-          <div key={report.report_id} className="p-3 bg-muted/20 hover:bg-muted/30 transition-colors border border-border/50 rounded-lg flex flex-col gap-2">
-            <div className="flex justify-between items-center">
-              <span className="text-sm font-bold">{report.vehicle_id}</span>
-              <span className="text-[10px] text-muted-foreground">
-                {new Date(report.generated_at).toLocaleString()}
-              </span>
+        {history.map((report, idx) => {
+          const dist = Number(report.distance_travelled ?? (report as any).distance_km ?? (report as any).distance ?? 0);
+          const s1 = Number(report.scope1_emission ?? (report as any).scope1_emission_kg ?? report.diesel_emission ?? 0);
+          const s3 = Number(report.scope3_emission ?? (report as any).scope3_emission_kg ?? report.ev_emission ?? 0);
+          const dateStr = report.generated_at ? new Date(report.generated_at).toLocaleString() : new Date().toLocaleString();
+          const reportKey = report.report_id || report.vehicle_id || `rep-${idx}`;
+
+          return (
+            <div key={reportKey} className="p-3 bg-muted/20 hover:bg-muted/30 transition-colors border border-border/50 rounded-lg flex flex-col gap-2">
+              <div className="flex justify-between items-center">
+                <span className="text-sm font-bold">{report.vehicle_id || 'EV-ASSET'}</span>
+                <span className="text-[10px] text-muted-foreground">
+                  {dateStr}
+                </span>
+              </div>
+              
+              <div className="grid grid-cols-3 gap-2 text-xs">
+                <div>
+                  <span className="block text-muted-foreground">Distance</span>
+                  <span className="font-medium">{dist.toFixed(1)} km</span>
+                </div>
+                <div>
+                  <span className="block text-muted-foreground">Scope-1 (Diesel)</span>
+                  <span className="font-medium text-red-400">{s1.toFixed(1)} kg</span>
+                </div>
+                <div>
+                  <span className="block text-muted-foreground">Scope-3 (EV)</span>
+                  <span className="font-medium text-emerald-400">{s3.toFixed(1)} kg</span>
+                </div>
+              </div>
             </div>
-            
-            <div className="grid grid-cols-3 gap-2 text-xs">
-              <div>
-                <span className="block text-muted-foreground">Distance</span>
-                <span className="font-medium">{report.distance_travelled.toFixed(1)} km</span>
-              </div>
-              <div>
-                <span className="block text-muted-foreground">Scope-1 (Diesel)</span>
-                <span className="font-medium text-red-400">{report.scope1_emission.toFixed(1)} kg</span>
-              </div>
-              <div>
-                <span className="block text-muted-foreground">Scope-3 (EV)</span>
-                <span className="font-medium text-emerald-400">{report.scope3_emission.toFixed(1)} kg</span>
-              </div>
-            </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
       
       <div className="border-t border-border pt-3 mt-3 text-xs text-muted-foreground flex justify-between shrink-0">
-        <span>Region: {history[0]?.grid_region.toUpperCase() || 'INDIA'}</span>
-        <span>Latest Update: {new Date(history[0]?.generated_at).toLocaleDateString()}</span>
+        <span>Region: {(history[0]?.grid_region || 'INDIA').toUpperCase()}</span>
+        <span>Latest Update: {history[0]?.generated_at ? new Date(history[0].generated_at).toLocaleDateString() : 'N/A'}</span>
       </div>
     </div>
   );

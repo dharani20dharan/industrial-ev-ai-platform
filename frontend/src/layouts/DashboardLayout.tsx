@@ -11,6 +11,7 @@ import {
   Gauge,
   User,
   SunMoon,
+  Sliders,
 } from "lucide-react";
 
 export default function DashboardLayout() {
@@ -19,11 +20,13 @@ export default function DashboardLayout() {
 
   const navigation = [
     { name: "Fleet Overview", href: "/", icon: Truck },
+    { name: "Simulation Controller", href: "/simulator", icon: Sliders },
     { name: "Battery Analytics", href: "/battery", icon: BatteryCharging },
     { name: "Supply Chain Graph", href: "/supply-chain", icon: Share2 },
     { name: "System Alerts", href: "/alerts", icon: BellRing },
     { name: "Carbon Intelligence", href: "/carbon", icon: Leaf },
   ];
+
 
   return (
     <div className="min-h-screen flex bg-background text-foreground font-sans">

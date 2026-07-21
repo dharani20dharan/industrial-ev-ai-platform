@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { Navigation, Radio } from "lucide-react";
 import FleetMap, { FleetMapVehicle } from "../maps/FleetMap";
 
@@ -36,7 +36,6 @@ export default function FleetSimulationMap({
   selectedVehicleId,
   onSelectVehicle,
 }: FleetSimulationMapProps) {
-  // Convert vehicle summaries to standardized FleetMapVehicle array
   const mapVehicles = useMemo<FleetMapVehicle[]>(() => {
     return vehicles.map((v) => ({
       vehicle_id: v.vehicle_id,
@@ -65,7 +64,6 @@ export default function FleetSimulationMap({
 
   return (
     <div className="bg-card border border-border rounded-xl p-5 shadow-lg space-y-3">
-      {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
         <div>
           <h3 className="text-base font-bold text-foreground flex items-center gap-2">
@@ -73,35 +71,14 @@ export default function FleetSimulationMap({
             <span>Live Geospatial Fleet Telemetry Map</span>
           </h3>
           <p className="text-xs text-muted-foreground">
-            Continuous real-time position tracking and route progression across operational hubs
+            Continuous real-time position tracking, dynamic filtering, and search isolation
           </p>
-        </div>
-
-        {/* Legend */}
-        <div className="flex items-center gap-3 text-xs font-semibold">
-          <div className="flex items-center gap-1">
-            <span className="h-2.5 w-2.5 rounded-full bg-blue-500" />
-            <span className="text-muted-foreground">Driving</span>
-          </div>
-          <div className="flex items-center gap-1">
-            <span className="h-2.5 w-2.5 rounded-full bg-emerald-400 animate-pulse" />
-            <span className="text-muted-foreground">Charging</span>
-          </div>
-          <div className="flex items-center gap-1">
-            <span className="h-2.5 w-2.5 rounded-full bg-amber-400" />
-            <span className="text-muted-foreground">Idle</span>
-          </div>
-          <div className="flex items-center gap-1">
-            <span className="h-2.5 w-2.5 rounded-full bg-rose-500 animate-pulse" />
-            <span className="text-muted-foreground">Fault</span>
-          </div>
         </div>
       </div>
 
-      {/* Interactive Leaflet Map Visualizer Container */}
       <div className="relative w-full rounded-xl overflow-hidden border border-border">
         {vehicles.length === 0 ? (
-          <div className="relative w-full h-[380px] bg-slate-950 rounded-xl flex flex-col items-center justify-center text-muted-foreground text-xs space-y-2">
+          <div className="relative w-full h-[450px] bg-slate-950 rounded-xl flex flex-col items-center justify-center text-muted-foreground text-xs space-y-2">
             <Radio className="h-8 w-8 text-blue-500 animate-pulse" />
             <p>No active simulated vehicles. Click "Start Simulation" or "Spawn Vehicles" above.</p>
           </div>
@@ -110,18 +87,12 @@ export default function FleetSimulationMap({
             vehicles={mapVehicles}
             selectedVehicleId={selectedVehicleId}
             onSelectVehicle={onSelectVehicle}
-            height="h-[380px]"
+            height="h-[450px]"
             showTrajectories={true}
             autoFitBounds={true}
           />
         )}
-
-        {/* Live Active Overlay */}
-        <div className="absolute bottom-3 left-3 z-[400] bg-card/85 backdrop-blur border border-border px-3 py-1.5 rounded-lg text-xs font-semibold text-muted-foreground shadow-md">
-          Showing <span className="text-foreground font-bold">{vehicles.length}</span> active simulated assets on real map
-        </div>
       </div>
     </div>
   );
 }
-

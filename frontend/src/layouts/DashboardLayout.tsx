@@ -20,7 +20,6 @@ export default function DashboardLayout() {
 
   const navigation = [
     { name: "Fleet Overview", href: "/", icon: Truck },
-    { name: "Simulation Controller", href: "/simulator", icon: Sliders },
     { name: "Battery Analytics", href: "/battery", icon: BatteryCharging },
     { name: "Supply Chain Graph", href: "/supply-chain", icon: Share2 },
     { name: "System Alerts", href: "/alerts", icon: BellRing },
@@ -104,18 +103,12 @@ export default function DashboardLayout() {
 
           <div className="flex items-center gap-4">
             {/* Quick action buttons */}
-            <button className="p-2 text-muted-foreground hover:text-foreground hover:bg-muted/50 rounded-lg transition-colors">
-              <SunMoon className="h-5 w-5" />
-            </button>
+            <Link to="/simulator" title="Open Simulator Controller">
+              <button className="p-2 text-muted-foreground hover:text-foreground hover:bg-muted/50 rounded-lg transition-colors">
+                <Sliders className="h-5 w-5" />
+              </button>
+            </Link>
             <div className="h-4 w-[1px] bg-border" />
-            <div className="flex items-center gap-2.5">
-              <div className="h-8 w-8 rounded-lg bg-blue-500/10 border border-blue-500/20 text-blue-500 flex items-center justify-center font-bold text-sm">
-                A1
-              </div>
-              <span className="hidden md:block text-sm font-semibold">
-                Hackathon User
-              </span>
-            </div>
           </div>
         </header>
 

@@ -12,25 +12,39 @@ export default function SimulationController() {
   const [statusData, setStatusData] = useState<any>(null);
   const [vehiclesList, setVehiclesList] = useState<any[]>([]);
   const [selectedVehicleId, setSelectedVehicleId] = useState<string | null>(null);
-  const [activeScenario, setActiveScenario] = useState<string>("SMALL");
 
-  // Store recent position trail history per vehicle_id
+  // Persist active scenario state in localStorage to prevent reset discrepancies on page refresh
+  const [activeScenario, setActiveScenario] = useState<string>(() => {
+    return localStorage.getItem("ev_sim_active_scenario") || "SMALL";
+  });
+
   const routeHistoryRef = useRef<Record<string, Array<[number, number]>>>({});
   const socketRef = useRef<WebSocket | null>(null);
   const reconnectRef = useRef<NodeJS.Timeout | null>(null);
 
-  // Helper to record history cleanly
+  const vehiclesBufferRef = useRef<Record<string, any>>({});
+  const needsRenderRef = useRef(false);
+
   const recordHistoryPoint = useCallback((vehicleId: string, lat: number, lng: number) => {
     if (!lat || !lng || isNaN(lat) || isNaN(lng)) return;
     const history = routeHistoryRef.current[vehicleId] || [];
     const lastPoint = history[history.length - 1];
-    
-    // Only append if location moved significantly (> 0.0001 deg)
+
     if (!lastPoint || Math.abs(lastPoint[0] - lat) > 0.00005 || Math.abs(lastPoint[1] - lng) > 0.00005) {
       const updated = [...history, [lat, lng] as [number, number]];
-      if (updated.length > 25) updated.shift(); // keep last 25 coordinates
+      if (updated.length > 25) updated.shift();
       routeHistoryRef.current[vehicleId] = updated;
     }
+  }, []);
+
+  useEffect(() => {
+    const renderInterval = setInterval(() => {
+      if (needsRenderRef.current) {
+        setVehiclesList(Object.values(vehiclesBufferRef.current));
+        needsRenderRef.current = false;
+      }
+    }, 500);
+    return () => clearInterval(renderInterval);
   }, []);
 
   const fetchStatus = async () => {
@@ -41,7 +55,7 @@ export default function SimulationController() {
         setStatusData(data);
       }
     } catch (err) {
-      console.warn("Backend API unreachable, trying fallback", err);
+      console.warn("Backend API unreachable", err);
     }
   };
 
@@ -52,23 +66,30 @@ export default function SimulationController() {
         const data = await res.json();
         const rawVehicles = data.vehicles || [];
 
-        // Attach route history to each vehicle
-        const enriched = rawVehicles.map((v: any) => {
+        rawVehicles.forEach((v: any) => {
           recordHistoryPoint(v.vehicle_id, v.latitude, v.longitude);
-          return {
+          vehiclesBufferRef.current[v.vehicle_id] = {
+            ...(vehiclesBufferRef.current[v.vehicle_id] || {}),
             ...v,
             route_history: routeHistoryRef.current[v.vehicle_id] || [],
           };
         });
-
-        setVehiclesList(enriched);
+        needsRenderRef.current = true;
       }
     } catch (err) {
       console.warn("Failed to fetch vehicles", err);
     }
   };
 
-  // Connect to live WebSocket telemetry stream to continuously animate markers
+  // Sync scenario persistence on load
+  useEffect(() => {
+    const initializeEngine = async () => {
+      await fetchStatus();
+      await fetchVehicles();
+    };
+    initializeEngine();
+  }, []);
+
   useEffect(() => {
     let isMounted = true;
 
@@ -83,14 +104,6 @@ export default function SimulationController() {
       const socket = new WebSocket('ws://localhost:8000/api/v1/telemetry/live');
       socketRef.current = socket;
 
-      socket.onopen = () => {
-        if (!isMounted) {
-          socket.close();
-          return;
-        }
-        console.log("📡 Live telemetry stream connected for Simulation Controller map.");
-      };
-
       socket.onmessage = (event) => {
         if (!isMounted) return;
         try {
@@ -100,30 +113,14 @@ export default function SimulationController() {
 
           recordHistoryPoint(vId, data.latitude, data.longitude);
 
-          setVehiclesList((prevVehicles) => {
-            const existingIdx = prevVehicles.findIndex((v) => v.vehicle_id === vId);
-            const routeHist = routeHistoryRef.current[vId] || [];
-
-            if (existingIdx >= 0) {
-              const updated = [...prevVehicles];
-              updated[existingIdx] = {
-                ...updated[existingIdx],
-                ...data,
-                route_history: routeHist,
-              };
-              return updated;
-            } else {
-              return [
-                ...prevVehicles,
-                {
-                  ...data,
-                  route_history: routeHist,
-                },
-              ];
-            }
-          });
+          vehiclesBufferRef.current[vId] = {
+            ...(vehiclesBufferRef.current[vId] || {}),
+            ...data,
+            route_history: routeHistoryRef.current[vId] || [],
+          };
+          needsRenderRef.current = true;
         } catch (e) {
-          // Ignore unparseable frame
+          // Ignore parse errors
         }
       };
 
@@ -133,20 +130,12 @@ export default function SimulationController() {
         if (reconnectRef.current) clearTimeout(reconnectRef.current);
         reconnectRef.current = setTimeout(connectWs, 3000);
       };
-
-      socket.onerror = () => {
-        // Fallback swallow
-      };
     }
 
     connectWs();
 
-    fetchStatus();
-    fetchVehicles();
-
     const interval = setInterval(() => {
       fetchStatus();
-      fetchVehicles();
     }, 2000);
 
     return () => {
@@ -154,20 +143,12 @@ export default function SimulationController() {
       clearInterval(interval);
       if (reconnectRef.current) clearTimeout(reconnectRef.current);
       if (socketRef.current) {
-        const ws = socketRef.current;
-        ws.onopen = null;
-        ws.onmessage = null;
-        ws.onclose = null;
-        ws.onerror = null;
-        if (ws.readyState === WebSocket.CONNECTING || ws.readyState === WebSocket.OPEN) {
-          ws.close();
-        }
+        socketRef.current.close();
         socketRef.current = null;
       }
     };
   }, [recordHistoryPoint]);
 
-  // Control Actions
   const handleStart = async () => {
     await fetch("http://localhost:8000/api/v1/simulator/start", { method: "POST" });
     fetchStatus();
@@ -190,6 +171,8 @@ export default function SimulationController() {
 
   const handleReset = async () => {
     await fetch("http://localhost:8000/api/v1/simulator/reset", { method: "POST" });
+    localStorage.removeItem("ev_sim_active_scenario");
+    setActiveScenario("SMALL");
     fetchStatus();
     fetchVehicles();
   };
@@ -205,6 +188,8 @@ export default function SimulationController() {
 
   const handleApplyScenario = async (scenarioName: string) => {
     setActiveScenario(scenarioName);
+    localStorage.setItem("ev_sim_active_scenario", scenarioName);
+
     await fetch("http://localhost:8000/api/v1/simulator/scenarios/apply", {
       method: "POST",
       headers: { "Content-Type": "application/json" },

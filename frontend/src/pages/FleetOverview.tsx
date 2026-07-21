@@ -18,7 +18,6 @@ export default function FleetOverview() {
   const { fleet, alerts, msgPerSec } = useFleetData();
   const [selectedVehicleId, setSelectedVehicleId] = useState<string | undefined>();
 
-  // Memoize active vehicles list
   const activeAssets = useMemo(() => Object.values(fleet), [fleet]);
 
   const criticalCount = useMemo(() =>
@@ -26,7 +25,6 @@ export default function FleetOverview() {
     [alerts]
   );
 
-  // Dynamic Metrics Calculation
   const metrics = useMemo(() => {
     let totalSoC = 0;
     let totalSpeed = 0;
@@ -56,7 +54,6 @@ export default function FleetOverview() {
     };
   }, [activeAssets]);
 
-  // Format fleet data into standardized FleetMapVehicle array
   const mapVehicles = useMemo<FleetMapVehicle[]>(() =>
     activeAssets.map(liveData => ({
       vehicle_id: liveData.vehicle_id,
@@ -127,7 +124,7 @@ export default function FleetOverview() {
             <span className="text-xs text-muted-foreground">Active Fleet Avg</span>
           </div>
         </div>
-        
+
         <div className="glass p-5 rounded-xl">
           <div className="flex items-center justify-between">
             <span className="text-sm font-semibold text-muted-foreground">Average Fleet Speed</span>
@@ -160,7 +157,7 @@ export default function FleetOverview() {
               <h2 className="text-lg font-semibold">Live Geospatial Telemetry Map</h2>
             </div>
             {selectedVehicleId && (
-              <button 
+              <button
                 onClick={() => setSelectedVehicleId(undefined)}
                 className="text-xs bg-slate-800 hover:bg-slate-700 text-slate-300 px-3 py-1 rounded transition-colors"
               >
@@ -182,9 +179,9 @@ export default function FleetOverview() {
         {/* Vehicle Inspector Drawer when a vehicle is selected */}
         {selectedVehicleId && (
           <div className="lg:col-span-1">
-            <VehicleInspector 
-              vehicleId={selectedVehicleId} 
-              onClose={() => setSelectedVehicleId(undefined)} 
+            <VehicleInspector
+              vehicleId={selectedVehicleId}
+              onClose={() => setSelectedVehicleId(undefined)}
             />
           </div>
         )}
@@ -231,7 +228,7 @@ export default function FleetOverview() {
                   const speedDisplay = liveData.speed_kph !== undefined ? `${liveData.speed_kph.toFixed(1)} km/h` : '0.0 km/h';
                   const tempDisplay = liveData.motor_temperature_c !== undefined ? `${liveData.motor_temperature_c.toFixed(1)}°C` : 'N/A';
                   const socDisplay = liveData.soc !== undefined ? `${liveData.soc.toFixed(1)}%` : 'N/A';
-                  
+
                   const locationDisplay = liveData.latitude && liveData.longitude
                     ? `${liveData.latitude.toFixed(4)}, ${liveData.longitude.toFixed(4)}`
                     : `Unknown`;
@@ -243,12 +240,12 @@ export default function FleetOverview() {
                   const isSelected = selectedVehicleId === liveData.vehicle_id;
 
                   return (
-                    <tr 
-                      key={liveData.vehicle_id} 
+                    <tr
+                      key={liveData.vehicle_id}
                       onClick={() => setSelectedVehicleId(liveData.vehicle_id)}
                       className={`transition-colors cursor-pointer border-l-2 ${
-                        isSelected 
-                          ? 'bg-blue-500/15 border-blue-500 font-semibold' 
+                        isSelected
+                          ? 'bg-blue-500/15 border-blue-500 font-semibold'
                           : 'border-transparent hover:bg-slate-800/50'
                       }`}
                     >

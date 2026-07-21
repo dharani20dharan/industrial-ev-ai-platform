@@ -1,42 +1,73 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useFleetData } from '../hooks/useFleetData';
+import { ShieldAlert, AlertTriangle, Search, Trash2, CheckCircle2, Radio, Filter } from 'lucide-react';
 
 interface SystemAlert {
-  id: string; // Dynamic ID to prevent duplicate key warning
+  id: string;
   asset: string;
-  type: 'Warning' | 'Critical';
+  type: 'Warning' | 'Critical' | 'FAULT';
   msg: string;
   timestamp: string;
 }
 
 export default function Alerts() {
-  // 1. Grab incoming stream alerts from our custom hook
   const { alerts: incomingAlerts } = useFleetData();
-
-  // 2. Maintain a local state so we can actually delete or acknowledge them on screen
   const [localAlerts, setLocalAlerts] = useState<SystemAlert[]>([]);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [severityFilter, setSeverityFilter] = useState<string>('ALL'); // ALL, CRITICAL, WARNING
 
-  // Sync incoming live updates with local state, assigning a bulletproof ID
+  // Sophisticated deduplication: If the same vehicle reports the exact same fault message,
+  // update its timestamp instead of spamming a duplicate card entry.
   useEffect(() => {
     if (incomingAlerts && incomingAlerts.length > 0) {
       setLocalAlerts((prev) => {
-        // Create an array of fresh entries with robust keys
-        const formattedIncoming = incomingAlerts.map((alert, index) => ({
-          ...alert,
-          // Generate a truly unique composite key string
-          id: `${alert.asset}-${alert.timestamp}-${index}-${alert.msg.substring(0, 5)}`
-        }));
+        const updated = [...prev];
 
-        // Deduplicate incoming vs existing to prevent view pop duplicates
-        const existingKeys = new Set(prev.map(a => a.id));
-        const newUniqueAlerts = formattedIncoming.filter(a => !existingKeys.has(a.id));
+        incomingAlerts.forEach((incoming) => {
+          // Stable fingerprint based on asset + message content
+          const fingerprint = `${incoming.asset}-${incoming.msg}`;
+          const existingIndex = updated.findIndex(
+            (a) => `${a.asset}-${a.msg}` === fingerprint
+          );
 
-        return [...newUniqueAlerts, ...prev].slice(0, 50);
+          if (existingIndex >= 0) {
+            // Update timestamp of existing alert without adding duplicate row
+            updated[existingIndex] = {
+              ...updated[existingIndex],
+              timestamp: incoming.timestamp || new Date().toLocaleTimeString(),
+            };
+          } else {
+            // Prepend new unique alert
+            updated.unshift({
+              ...incoming,
+              id: `${fingerprint}-${Date.now()}`,
+            });
+          }
+        });
+
+        return updated.slice(0, 100); // Keep buffer capped
       });
     }
   }, [incomingAlerts]);
 
-  // FIX: This now safely mutates the correct local state array!
+  // Filter alerts based on search query and severity filter
+  const filteredAlerts = useMemo(() => {
+    return localAlerts.filter((alert) => {
+      const matchesSearch =
+        !searchQuery ||
+        alert.asset.toLowerCase().includes(searchQuery.toLowerCase().trim()) ||
+        alert.msg.toLowerCase().includes(searchQuery.toLowerCase().trim());
+
+      if (!matchesSearch) return false;
+
+      if (severityFilter === 'ALL') return true;
+      if (severityFilter === 'CRITICAL' && (alert.type === 'Critical' || alert.type === 'FAULT')) return true;
+      if (severityFilter === 'WARNING' && alert.type === 'Warning') return true;
+
+      return false;
+    });
+  }, [localAlerts, searchQuery, severityFilter]);
+
   const clearAlert = (idToRemove: string) => {
     setLocalAlerts((prev) => prev.filter((alert) => alert.id !== idToRemove));
   };
@@ -46,55 +77,114 @@ export default function Alerts() {
   };
 
   return (
-    <div className="p-6 max-w-4xl mx-auto">
-      <div className="flex justify-between items-center mb-6">
-        <h2 className="text-2xl font-bold text-gray-800">System Activity Fault Logs</h2>
-        {localAlerts.length > 0 && (
-          <button
-            onClick={clearAllAlerts}
-            className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded text-sm transition"
-          >
-            Clear All Logs
-          </button>
-        )}
+    <div className="space-y-6 animate-fade-in pb-12 max-w-7xl mx-auto">
+      {/* Header View Row */}
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-card border border-border p-6 rounded-2xl shadow-xl bg-gradient-to-r from-blue-950/20 via-card to-card">
+        <div>
+          <h1 className="text-3xl font-extrabold tracking-tight flex items-center gap-3">
+            System Activity Fault Logs
+            <span className="px-2.5 py-0.5 rounded-full bg-rose-500/10 border border-rose-500/30 text-rose-400 text-xs font-mono">
+              {localAlerts.length} Active
+            </span>
+          </h1>
+          <p className="text-muted-foreground mt-1 text-sm">Real-time predictive anomaly diagnostics and threshold excursion telemetry.</p>
+        </div>
+
+        <div className="flex items-center gap-3 flex-wrap">
+          {localAlerts.length > 0 && (
+            <button
+              onClick={clearAllAlerts}
+              className="flex items-center gap-2 px-4 py-2 bg-rose-600/20 hover:bg-rose-600 text-rose-300 hover:text-white border border-rose-500/40 rounded-xl text-xs font-semibold transition-all shadow"
+            >
+              <Trash2 className="h-4 w-4" />
+              <span>Acknowledge All</span>
+            </button>
+          )}
+        </div>
       </div>
 
-      {localAlerts.length === 0 ? (
-        <div className="p-8 text-center bg-gray-50 border border-dashed rounded text-gray-500">
-          🟢 All vehicle assets running within nominal thresholds. No faults detected.
+      {/* Control Bar: Search & Severity Filters */}
+      <div className="flex flex-col sm:flex-row justify-between items-center gap-4 bg-card border border-border p-4 rounded-xl shadow-md">
+        <div className="relative w-full sm:w-80">
+          <Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
+          <input
+            type="text"
+            placeholder="Search by Vehicle ID or fault message..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="w-full pl-9 pr-4 py-2 bg-background border border-border rounded-lg text-xs font-mono text-foreground focus:outline-none focus:ring-1 focus:ring-blue-500"
+          />
+        </div>
+
+        <div className="flex items-center gap-1.5 bg-muted/40 p-1 rounded-lg border border-border text-xs font-semibold">
+          {['ALL', 'CRITICAL', 'WARNING'].map((filter) => (
+            <button
+              key={filter}
+              onClick={() => setSeverityFilter(filter)}
+              className={`px-3 py-1.5 rounded-md transition-all ${
+                severityFilter === filter
+                  ? 'bg-blue-600 text-white shadow'
+                  : 'text-muted-foreground hover:text-foreground'
+              }`}
+            >
+              {filter}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Alert Feed Section */}
+      {filteredAlerts.length === 0 ? (
+        <div className="glass p-12 rounded-2xl text-center flex flex-col items-center justify-center space-y-3 border border-dashed border-border">
+          <CheckCircle2 className="h-10 w-10 text-emerald-500 animate-pulse" />
+          <h3 className="text-base font-bold text-foreground">No Faults Detected</h3>
+          <p className="text-xs text-muted-foreground max-w-md">
+            All active fleet assets are operating strictly within nominal electro-chemical and thermal safety thresholds.
+          </p>
         </div>
       ) : (
         <div className="space-y-3">
-          {localAlerts.map((alert) => (
-            // FIX: Explicitly passing down our absolute unique dynamic ID key
-            <div
-              key={alert.id}
-              className={`p-4 rounded border flex justify-between items-start transition ${
-                alert.type === 'Critical' ? 'bg-red-50 border-red-200' : 'bg-amber-50 border-amber-200'
-              }`}
-            >
-              <div className="flex-1">
-                <div className="flex items-center gap-2 mb-1">
-                  <span className={`px-2 py-0.5 rounded text-xs font-semibold ${
-                    alert.type === 'Critical' ? 'bg-red-200 text-red-800' : 'bg-amber-200 text-amber-800'
-                  }`}>
-                    {alert.type}
-                  </span>
-                  <strong className="text-gray-900">{alert.asset}</strong>
-                  <span className="text-xs text-gray-500 font-mono">{alert.timestamp}</span>
-                </div>
-                <p className="text-sm text-gray-700">{alert.msg}</p>
-              </div>
+          {filteredAlerts.map((alert) => {
+            const isCritical = alert.type === 'Critical' || alert.type === 'FAULT';
 
-              <button
-                onClick={() => clearAlert(alert.id)}
-                className="text-gray-400 hover:text-gray-600 ml-4 font-bold text-lg leading-none"
-                title="Acknowledge fault"
+            return (
+              <div
+                key={alert.id}
+                className={`glass p-4.5 rounded-xl border flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 transition-all duration-200 hover:scale-[1.01] ${
+                  isCritical ? 'border-rose-500/40 bg-rose-500/5' : 'border-amber-500/40 bg-amber-500/5'
+                }`}
               >
-                &times;
-              </button>
-            </div>
-          ))}
+                <div className="flex items-start gap-3.5 flex-1">
+                  <div className={`p-2.5 rounded-xl border shrink-0 mt-0.5 ${
+                    isCritical ? 'bg-rose-500/10 border-rose-500/30 text-rose-400 animate-pulse' : 'bg-amber-500/10 border-amber-500/30 text-amber-400'
+                  }`}>
+                    {isCritical ? <ShieldAlert className="h-5 w-5" /> : <AlertTriangle className="h-5 w-5" />}
+                  </div>
+
+                  <div className="space-y-1 flex-1">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider border ${
+                        isCritical ? 'bg-rose-500/20 text-rose-300 border-rose-500/40' : 'bg-amber-500/20 text-amber-300 border-amber-500/40'
+                      }`}>
+                        {alert.type}
+                      </span>
+                      <strong className="text-sm font-mono font-bold text-foreground">{alert.asset}</strong>
+                      <span className="text-[11px] text-muted-foreground font-mono ml-auto sm:ml-0">{alert.timestamp}</span>
+                    </div>
+                    <p className="text-xs text-slate-300 leading-relaxed font-medium">{alert.msg}</p>
+                  </div>
+                </div>
+
+                <button
+                  onClick={() => clearAlert(alert.id)}
+                  className="px-3 py-1.5 bg-muted/40 hover:bg-muted text-muted-foreground hover:text-foreground border border-border rounded-lg text-xs font-semibold transition-all shrink-0 self-end sm:self-center"
+                  title="Acknowledge and dismiss fault log"
+                >
+                  Acknowledge
+                </button>
+              </div>
+            );
+          })}
         </div>
       )}
     </div>

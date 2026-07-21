@@ -1,6 +1,7 @@
-import { useMemo, useEffect, useRef } from 'react';
+import { useMemo, useEffect, useRef, useState } from 'react';
 import { MapContainer, TileLayer, Marker, Popup, Polyline, useMap } from 'react-leaflet';
 import L from 'leaflet';
+import { Search, Filter, RefreshCw } from 'lucide-react';
 
 export interface FleetMapVehicle {
   vehicle_id: string;
@@ -9,7 +10,7 @@ export interface FleetMapVehicle {
   vehicle_type?: string;
   latitude: number;
   longitude: number;
-  status?: string; // "Active" | "Driving" | "Charging" | "Idle" | "Fault" | "Critical" | "Warning" | "Offline"
+  status?: string;
   speed_kph?: number;
   heading?: number;
   motor_temperature_c?: number;
@@ -39,7 +40,7 @@ export interface FleetMapProps {
   defaultZoom?: number;
 }
 
-// Controller component to smoothly update camera bounds on major fleet changes
+// Controller component to smoothly update camera bounds on major fleet changes or selections
 function MapUpdater({
   coordinates,
   selectedLocation,
@@ -52,14 +53,12 @@ function MapUpdater({
   const map = useMap();
   const prevCoordsCountRef = useRef<number>(0);
 
-  // Pan to selected vehicle when selected
   useEffect(() => {
     if (selectedLocation && selectedLocation[0] && selectedLocation[1]) {
-      map.panTo(selectedLocation, { animate: true, duration: 0.8 });
+      map.flyTo(selectedLocation, 15, { animate: true, duration: 0.8 });
     }
   }, [selectedLocation, map]);
 
-  // Fit bounds when fleet coordinate count changes or initially loads
   useEffect(() => {
     if (!autoFitBounds) return;
     if (coordinates.length > 0 && Math.abs(coordinates.length - prevCoordsCountRef.current) > 0) {
@@ -82,45 +81,36 @@ const getMarkerStatusStr = (v: FleetMapVehicle): string => {
   if (!v) return "IDLE";
   if (typeof v.status === "string") return v.status;
   if (typeof v.driving_state === "string") return v.driving_state;
-  if (v.is_charging) return "Charging";
-  if (v.is_moving) return "Driving";
-  return "Idle";
+  if (v.is_charging) return "CHARGING";
+  if (v.is_moving) return "DRIVING";
+  return "IDLE";
 };
 
-// Factory function building custom Leaflet markers matching platform theme
+// Factory function building lightweight custom markers
 const createCustomMarker = (vehicle: FleetMapVehicle, isSelected: boolean) => {
-  const rawStatus = getMarkerStatusStr(vehicle);
-  const status = rawStatus.toUpperCase();
+  const status = getMarkerStatusStr(vehicle).toUpperCase();
   const isCharging = vehicle.is_charging || status === "CHARGING";
   const isFault = status === "FAULT" || status === "CRITICAL" || !!vehicle.active_anomaly;
   const isIdle = status === "IDLE" || status === "WARNING" || (!vehicle.is_moving && !isCharging && !isFault);
-  const isOffline = status === "OFFLINE";
 
-  let colorClass = "bg-blue-500 ring-blue-500/40"; // Driving / Active
-  if (isFault) {
-    colorClass = "bg-red-500 ring-red-500/50 animate-pulse";
-  } else if (isCharging) {
-    colorClass = "bg-emerald-400 ring-emerald-500/40 animate-pulse";
-  } else if (isIdle) {
-    colorClass = "bg-amber-400 ring-amber-500/30";
-  } else if (isOffline) {
-    colorClass = "bg-slate-500 ring-slate-500/20";
-  }
+  let colorClass = "bg-blue-500 ring-blue-500/40";
+  if (isFault) colorClass = "bg-rose-500 ring-rose-500/50 animate-pulse";
+  else if (isCharging) colorClass = "bg-emerald-400 ring-emerald-500/40 animate-pulse";
+  else if (isIdle) colorClass = "bg-amber-400 ring-amber-500/30";
 
   const selectedRing = isSelected ? "ring-4 ring-cyan-400 scale-125 z-50" : "";
 
   return L.divIcon({
     className: 'custom-leaflet-marker',
     html: `
-      <div class="relative flex items-center justify-center w-7 h-7 transition-all duration-300 ${selectedRing}">
-        <div class="absolute w-7 h-7 rounded-full ring-4 opacity-40 animate-ping ${colorClass}"></div>
-        <div class="w-4 h-4 rounded-full border-2 border-slate-950 shadow-lg ${colorClass} flex items-center justify-center text-[8px] font-black text-white">
-        </div>
+      <div class="relative flex items-center justify-center w-6 h-6 transition-all duration-200 ${selectedRing}">
+        <div class="absolute w-6 h-6 rounded-full ring-2 opacity-30 ${colorClass}"></div>
+        <div class="w-3.5 h-3.5 rounded-full border-2 border-slate-950 shadow-md ${colorClass}"></div>
       </div>
     `,
-    iconSize: [28, 28],
-    iconAnchor: [14, 14],
-    popupAnchor: [0, -14],
+    iconSize: [24, 24],
+    iconAnchor: [12, 12],
+    popupAnchor: [0, -12],
   });
 };
 
@@ -129,187 +119,169 @@ export default function FleetMap({
   selectedVehicleId,
   onSelectVehicle,
   className = "",
-  height = "h-[420px]",
+  height = "h-[450px]",
   showTrajectories = true,
   autoFitBounds = true,
-  defaultCenter = [28.6139, 77.2090], // Delhi NCR / Central hub fallback
+  defaultCenter = [28.6139, 77.2090],
   defaultZoom = 12,
 }: FleetMapProps) {
-  // Memoize valid coordinates for automated viewport framing
-  const validCoordinates = useMemo<[number, number][]>(() => {
-    return vehicles
-      .filter((v) => typeof v.latitude === "number" && typeof v.longitude === "number" && !isNaN(v.latitude) && !isNaN(v.longitude))
-      .map((v) => [v.latitude, v.longitude]);
-  }, [vehicles]);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [statusFilter, setStatusFilter] = useState<string>("ALL"); // ALL, DRIVING, CHARGING, IDLE, FAULT
 
-  // Selected vehicle coordinate lookup
+  // Filter vehicles dynamically based on ID search and status pills
+  const filteredVehicles = useMemo(() => {
+    return vehicles.filter(v => {
+      if (!v.latitude || !v.longitude || isNaN(v.latitude) || isNaN(v.longitude)) return false;
+
+      // Search query filtering
+      const matchesSearch = !searchQuery || v.vehicle_id.toLowerCase().includes(searchQuery.toLowerCase().trim());
+      if (!matchesSearch) return false;
+
+      // Status pill filtering
+      if (statusFilter === "ALL") return true;
+      const status = getMarkerStatusStr(v).toUpperCase();
+      if (statusFilter === "DRIVING" && (status === "DRIVING" || v.is_moving)) return true;
+      if (statusFilter === "CHARGING" && (status === "CHARGING" || v.is_charging)) return true;
+      if (statusFilter === "FAULT" && (status === "FAULT" || status === "CRITICAL" || v.active_anomaly)) return true;
+      if (statusFilter === "IDLE" && (status === "IDLE" || (!v.is_moving && !v.is_charging && !v.active_anomaly))) return true;
+
+      return false;
+    });
+  }, [vehicles, searchQuery, statusFilter]);
+
+  const validCoordinates = useMemo<[number, number][]>(() => {
+    return filteredVehicles.map(v => [v.latitude, v.longitude]);
+  }, [filteredVehicles]);
+
   const selectedLocation = useMemo<[number, number] | undefined>(() => {
     if (!selectedVehicleId) return undefined;
-    const target = vehicles.find((v) => v.vehicle_id === selectedVehicleId);
-    if (target && target.latitude && target.longitude) {
-      return [target.latitude, target.longitude];
-    }
-    return undefined;
+    const target = vehicles.find(v => v.vehicle_id === selectedVehicleId);
+    return target ? [target.latitude, target.longitude] : undefined;
   }, [selectedVehicleId, vehicles]);
 
-  // Initial center resolution (first vehicle or default center)
   const initialCenter = useMemo<[number, number]>(() => {
-    if (validCoordinates.length > 0) {
-      return validCoordinates[0];
-    }
-    return defaultCenter;
+    return validCoordinates.length > 0 ? validCoordinates[0] : defaultCenter;
   }, [validCoordinates, defaultCenter]);
 
   return (
-    <div className={`w-full rounded-xl overflow-hidden border border-border bg-slate-950 z-10 relative ${height} ${className}`}>
-      <MapContainer
-        center={initialCenter}
-        zoom={defaultZoom}
-        className="h-full w-full"
-        style={{ background: '#090d16' }}
-      >
-        <TileLayer
-          attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>'
-          url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
-        />
+    <div className={`w-full rounded-xl overflow-hidden border border-border bg-slate-950 flex flex-col relative ${className}`}>
+      {/* Map Control Toolbar (Search & Filter Pills) */}
+      <div className="absolute top-3 right-3 z-[400] flex flex-wrap items-center gap-2 bg-card/90 backdrop-blur-md p-2 rounded-xl border border-border shadow-xl">
+        {/* Search Input */}
+        <div className="relative">
+          <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-muted-foreground" />
+          <input
+            type="text"
+            placeholder="Search Vehicle ID..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="pl-8 pr-3 py-1.5 bg-background border border-border rounded-lg text-xs font-mono text-foreground focus:outline-none focus:ring-1 focus:ring-blue-500 w-36 sm:w-44"
+          />
+        </div>
 
-        {/* Trajectories / Travel History Lines */}
-        {showTrajectories &&
-          vehicles.map((v) => {
-            if (!v.route_history || v.route_history.length < 2) return null;
+        {/* Status Filter Pills */}
+        <div className="flex items-center gap-1 bg-muted/40 p-1 rounded-lg border border-border text-[11px] font-semibold">
+          {["ALL", "DRIVING", "CHARGING", "IDLE", "FAULT"].map(filter => (
+            <button
+              key={filter}
+              onClick={() => setStatusFilter(filter)}
+              className={`px-2 py-1 rounded transition-all ${
+                statusFilter === filter
+                  ? "bg-blue-600 text-white shadow"
+                  : "text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              {filter}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Leaflet Map Canvas Container */}
+      <div className={`w-full ${height} relative z-10`}>
+        <MapContainer
+          center={initialCenter}
+          zoom={defaultZoom}
+          className="h-full w-full"
+          style={{ background: '#090d16' }}
+        >
+          <TileLayer
+            attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>'
+            url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
+          />
+
+          {/* Trajectories / Travel History Lines (Only render for filtered or selected assets to save memory) */}
+          {showTrajectories &&
+            filteredVehicles.map(v => {
+              if (!v.route_history || v.route_history.length < 2) return null;
+              const isSelected = v.vehicle_id === selectedVehicleId;
+              if (searchQuery && !isSelected) return; // Cull non-selected history when actively searching
+
+              const lineColor = isSelected ? '#38bdf8' : v.is_charging ? '#10b981' : v.active_anomaly ? '#ef4444' : '#3b82f6';
+              return (
+                <Polyline
+                  key={`route-${v.vehicle_id}`}
+                  positions={v.route_history}
+                  pathOptions={{
+                    color: lineColor,
+                    weight: isSelected ? 3.5 : 1.5,
+                    opacity: isSelected ? 0.9 : 0.4,
+                  }}
+                />
+              );
+            })}
+
+          {/* Vehicle Markers */}
+          {filteredVehicles.map(v => {
             const isSelected = v.vehicle_id === selectedVehicleId;
-            const lineColor = isSelected ? '#38bdf8' : v.is_charging ? '#10b981' : v.driving_state === 'FAULT' ? '#ef4444' : '#3b82f6';
+            const statusStr = getMarkerStatusStr(v);
+
             return (
-              <Polyline
-                key={`route-${v.vehicle_id}`}
-                positions={v.route_history}
-                pathOptions={{
-                  color: lineColor,
-                  weight: isSelected ? 3.5 : 2,
-                  opacity: isSelected ? 0.9 : 0.6,
-                  dashArray: isSelected ? undefined : '5, 5',
+              <Marker
+                key={`fleet-marker-${v.vehicle_id}`}
+                position={[v.latitude, v.longitude]}
+                icon={createCustomMarker(v, isSelected)}
+                eventHandlers={{
+                  click: () => {
+                    if (onSelectVehicle) onSelectVehicle(v.vehicle_id);
+                  },
                 }}
-              />
+              >
+                <Popup className="custom-map-popup min-w-[220px]">
+                  <div className="p-2 font-mono text-xs text-slate-200 space-y-1.5">
+                    <div className="flex items-center justify-between border-b border-slate-700/80 pb-1">
+                      <strong className="text-blue-400 font-bold text-sm">{v.vehicle_id}</strong>
+                      <span className="px-2 py-0.5 rounded text-[9px] font-bold uppercase bg-blue-500/20 text-blue-300">
+                        {statusStr}
+                      </span>
+                    </div>
+                    <div className="grid grid-cols-2 gap-1 text-[11px]">
+                      <div>Speed: <span className="text-slate-100 font-bold">{v.speed_kph?.toFixed(1) || 0} km/h</span></div>
+                      <div>SoC: <span className="text-cyan-400 font-bold">{v.soc?.toFixed(0) || 0}%</span></div>
+                      <div>Temp: <span className="text-amber-400 font-bold">{v.motor_temperature_c?.toFixed(1) || 38}°C</span></div>
+                      <div>Voltage: <span className="text-slate-100 font-bold">{v.voltage || 400}V</span></div>
+                    </div>
+                  </div>
+                </Popup>
+              </Marker>
             );
           })}
 
-        {/* Vehicle Markers Loop */}
-        {vehicles.map((v) => {
-          if (typeof v.latitude !== "number" || typeof v.longitude !== "number" || isNaN(v.latitude) || isNaN(v.longitude)) {
-            return null;
-          }
+          <MapUpdater
+            coordinates={validCoordinates}
+            selectedLocation={selectedLocation}
+            autoFitBounds={autoFitBounds && !searchQuery}
+          />
+        </MapContainer>
+      </div>
 
-          const isSelected = v.vehicle_id === selectedVehicleId;
-          const statusStr = getMarkerStatusStr(v);
-
-          return (
-            <Marker
-              key={`fleet-marker-${v.vehicle_id}`}
-              position={[v.latitude, v.longitude]}
-              icon={createCustomMarker(v, isSelected)}
-              eventHandlers={{
-                click: () => {
-                  if (onSelectVehicle) {
-                    onSelectVehicle(v.vehicle_id);
-                  }
-                },
-              }}
-            >
-              <Popup className="custom-map-popup min-w-[240px]">
-                <div className="p-2 font-mono text-xs text-slate-200 space-y-2">
-                  {/* Header Row */}
-                  <div className="flex items-center justify-between border-b border-slate-700/80 pb-1.5">
-                    <div>
-                      <strong className="text-blue-400 font-bold text-sm block tracking-wide">{v.vehicle_id}</strong>
-                      <span className="text-[10px] text-slate-400">
-                        Fleet: <span className="text-slate-200 font-semibold">{v.fleet_id || "Fleet Alpha"}</span>
-                      </span>
-                    </div>
-                    <span
-                      className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider ${
-                        statusStr.toUpperCase() === "CHARGING" || v.is_charging
-                          ? "bg-emerald-500/20 text-emerald-400 border border-emerald-500/40"
-                          : statusStr.toUpperCase() === "FAULT" || statusStr.toUpperCase() === "CRITICAL"
-                          ? "bg-rose-500/20 text-rose-400 border border-rose-500/40 animate-pulse"
-                          : statusStr.toUpperCase() === "IDLE"
-                          ? "bg-amber-500/20 text-amber-400 border border-amber-500/40"
-                          : "bg-blue-500/20 text-blue-400 border border-blue-500/40"
-                      }`}
-                    >
-                      {statusStr}
-                    </span>
-                  </div>
-
-                  {/* Operational Telemetry Grid */}
-                  <div className="grid grid-cols-2 gap-1.5 text-[11px]">
-                    <div className="bg-slate-900/80 p-1.5 rounded border border-slate-800">
-                      <span className="text-slate-400 block text-[9px]">Speed & Heading</span>
-                      <span className="font-bold text-slate-100">
-                        {v.speed_kph !== undefined ? `${v.speed_kph.toFixed(1)} km/h` : "0.0 km/h"}
-                      </span>
-                      {v.heading !== undefined && (
-                        <span className="text-[9px] text-slate-400 block">Heading: {v.heading}°</span>
-                      )}
-                    </div>
-
-                    <div className="bg-slate-900/80 p-1.5 rounded border border-slate-800">
-                      <span className="text-slate-400 block text-[9px]">Battery SoC / SoH</span>
-                      <span className="font-bold text-cyan-400">
-                        {v.soc !== undefined ? `${v.soc.toFixed(0)}%` : "N/A"}
-                      </span>
-                      <span className="text-[9px] text-slate-400 block">
-                        SoH: {v.soh !== undefined ? `${v.soh.toFixed(0)}%` : "100%"}
-                      </span>
-                    </div>
-
-                    <div className="bg-slate-900/80 p-1.5 rounded border border-slate-800">
-                      <span className="text-slate-400 block text-[9px]">Motor / Cell Temp</span>
-                      <span className="font-bold text-slate-100">
-                        {v.motor_temperature_c !== undefined
-                          ? `${v.motor_temperature_c.toFixed(1)}°C`
-                          : v.cell_temp !== undefined
-                          ? `${v.cell_temp.toFixed(1)}°C`
-                          : "38.0°C"}
-                      </span>
-                    </div>
-
-                    <div className="bg-slate-900/80 p-1.5 rounded border border-slate-800">
-                      <span className="text-slate-400 block text-[9px]">Voltage / Current</span>
-                      <span className="font-bold text-slate-100">
-                        {v.voltage !== undefined ? `${v.voltage.toFixed(0)}V` : "400V"}{" "}
-                        {v.current_amps !== undefined ? `${v.current_amps.toFixed(0)}A` : ""}
-                      </span>
-                    </div>
-                  </div>
-
-                  {/* Profile & Location Footer */}
-                  <div className="text-[10px] text-slate-400 pt-1 border-t border-slate-800/80 flex items-center justify-between">
-                    <div>
-                      <span>Profile: </span>
-                      <span className="text-slate-200 font-semibold">{v.profile_name || v.vehicle_type || "Delivery Van"}</span>
-                    </div>
-                    <div className="text-blue-400 font-mono text-[9px]">
-                      {v.latitude.toFixed(4)}, {v.longitude.toFixed(4)}
-                    </div>
-                  </div>
-
-                  {v.last_updated && (
-                    <div className="text-[9px] text-slate-500 text-right italic">
-                      Updated: {new Date(v.last_updated).toLocaleTimeString()}
-                    </div>
-                  )}
-                </div>
-              </Popup>
-            </Marker>
-          );
-        })}
-
-        <MapUpdater
-          coordinates={validCoordinates}
-          selectedLocation={selectedLocation}
-          autoFitBounds={autoFitBounds}
-        />
-      </MapContainer>
+      {/* Footer Overlay Count */}
+      <div className="absolute bottom-3 left-3 z-[400] bg-card/85 backdrop-blur border border-border px-3 py-1.5 rounded-lg text-xs font-semibold text-muted-foreground shadow-md flex items-center gap-2">
+        <span>Showing <strong className="text-foreground">{filteredVehicles.length}</strong> of {vehicles.length} assets</span>
+        {searchQuery && (
+          <button onClick={() => setSearchQuery("")} className="text-blue-400 hover:underline text-[10px]">Clear Search</button>
+        )}
+      </div>
     </div>
   );
 }

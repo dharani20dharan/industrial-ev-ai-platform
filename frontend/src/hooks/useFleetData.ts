@@ -9,6 +9,11 @@ export function useFleetData() {
   const reconnectRef = useRef<NodeJS.Timeout | null>(null);
   const counterRef = useRef(0);
 
+  // --- PERFORMANCE OPTIMIZATION: Render Buffers ---
+  const fleetBufferRef = useRef<Record<string, any>>({});
+  const alertsBufferRef = useRef<any[]>([]);
+  const pendingUpdateRef = useRef(false);
+
   // Initial REST fetch to seed active vehicles immediately
   useEffect(() => {
     const fetchInitialVehicles = async () => {
@@ -23,6 +28,7 @@ export function useFleetData() {
               initialMap[v.vehicle_id] = v;
             }
           });
+          fleetBufferRef.current = { ...fleetBufferRef.current, ...initialMap };
           setFleet((prev) => ({ ...initialMap, ...prev }));
         }
       } catch (err) {
@@ -30,6 +36,20 @@ export function useFleetData() {
       }
     };
     fetchInitialVehicles();
+  }, []);
+
+  // Flush buffer to state twice a second (Decouples ingestion from rendering)
+  useEffect(() => {
+    const renderInterval = setInterval(() => {
+      if (pendingUpdateRef.current) {
+        setFleet((prev) => ({ ...prev, ...fleetBufferRef.current }));
+        if (alertsBufferRef.current.length > 0) {
+          setAlerts([...alertsBufferRef.current]);
+        }
+        pendingUpdateRef.current = false;
+      }
+    }, 500);
+    return () => clearInterval(renderInterval);
   }, []);
 
   useEffect(() => {
@@ -74,33 +94,40 @@ export function useFleetData() {
             motor_temperature_c: temp
           };
 
-          setFleet((prev) => ({ ...prev, [vId]: updatedData }));
+          // O(1) buffer write instead of triggering a heavy React state render
+          fleetBufferRef.current[vId] = {
+            ...(fleetBufferRef.current[vId] || {}),
+            ...updatedData
+          };
+          pendingUpdateRef.current = true;
 
-          // Anomaly/Alert stack
+          // Anomaly/Alert stack buffer
           if (data.active_anomaly || temp > 65.0) {
-            setAlerts((prev) => [
-              {
-                asset: vId,
-                type: 'Critical',
-                msg: data.active_anomaly ? `Anomaly: ${data.active_anomaly}` : `High temp anomaly: ${temp.toFixed(1)}°C`,
-                timestamp: new Date().toLocaleTimeString()
-              },
-              ...prev.filter(a => a.asset !== vId).slice(0, 9)
-            ]);
+            const newAlert = {
+              asset: vId,
+              type: 'Critical',
+              msg: data.active_anomaly ? `Anomaly: ${data.active_anomaly}` : `High temp anomaly: ${temp.toFixed(1)}°C`,
+              timestamp: new Date().toLocaleTimeString()
+            };
+
+            alertsBufferRef.current = [
+              newAlert,
+              ...alertsBufferRef.current.filter(a => a.asset !== vId)
+            ].slice(0, 9);
           }
         } catch (e) {
           console.error('Failed to parse frame payload:', e);
         }
       };
 
-      socket.onclose = (event) => {
+      socket.onclose = () => {
         if (!isMounted) return;
         socketRef.current = null;
         if (reconnectRef.current) clearTimeout(reconnectRef.current);
         reconnectRef.current = setTimeout(connect, 3000);
       };
 
-      socket.onerror = (error) => {
+      socket.onerror = () => {
         if (!isMounted) return;
       };
     }
@@ -119,14 +146,7 @@ export function useFleetData() {
       clearInterval(interval);
       if (reconnectRef.current) clearTimeout(reconnectRef.current);
       if (socketRef.current) {
-        const ws = socketRef.current;
-        ws.onopen = null;
-        ws.onmessage = null;
-        ws.onclose = null;
-        ws.onerror = null;
-        if (ws.readyState === WebSocket.CONNECTING || ws.readyState === WebSocket.OPEN) {
-          ws.close();
-        }
+        socketRef.current.close();
         socketRef.current = null;
       }
     };

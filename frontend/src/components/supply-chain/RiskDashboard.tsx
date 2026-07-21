@@ -37,9 +37,11 @@ export default function RiskDashboard() {
   useEffect(() => {
     const fetchRisk = async () => {
       try {
+        console.log('[API CALL] GET /api/v1/supply-chain/risk');
         const response = await fetch('/api/v1/supply-chain/risk');
         if (response.ok) {
           const data = await response.json();
+          console.log('[API RESPONSE] Supply Chain ML Risk:', data);
           setRiskData(data);
         }
       } catch (error) {
@@ -59,14 +61,13 @@ export default function RiskDashboard() {
     return <div className="p-6 glass rounded-xl text-red-400">Failed to load risk data.</div>;
   }
 
-  // Aggregate breakdown across all suppliers to get averages for the bars
   const avgBreakdown = {
     concentration: 0,
     geopolitical: 0,
     shipping: 0
   };
 
-  if (riskData.suppliers.length > 0) {
+  if (riskData.suppliers && riskData.suppliers.length > 0) {
     let conc = 0, geo = 0, ship = 0;
     riskData.suppliers.forEach(s => {
       conc += s.breakdown?.concentration_risk || 0;
@@ -101,8 +102,8 @@ export default function RiskDashboard() {
     <div className="glass p-6 rounded-xl flex flex-col justify-between h-full">
       <div>
         <h2 className="font-semibold text-lg">Supply Chain Risk Scoring</h2>
-        <p className="text-xs text-muted-foreground mt-1">
-          Global Risk Index: <span className="font-bold">{riskData.global_risk_index}/100</span> ({riskData.risk_level}) 
+        <p className="text-xs text-muted-foreground mt-1 font-mono">
+          Global Risk Index: <span className="font-bold">{riskData.global_risk_index}/100</span> ({riskData.risk_level})
           | Confidence: {riskData.confidence}%
         </p>
       </div>
@@ -148,7 +149,7 @@ export default function RiskDashboard() {
           </p>
         </div>
       )}
-      
+
       {(!riskData.critical_vulnerability || riskData.critical_vulnerability === "No supply chain vulnerabilities detected.") && (
         <div className="bg-emerald-500/5 border border-emerald-500/20 p-3 rounded-lg flex items-start gap-2.5">
           <ShieldAlert className="h-4.5 w-4.5 text-emerald-400 shrink-0 mt-0.5" />

@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { Truck, Battery, AlertTriangle, ShieldCheck, Activity, Navigation } from 'lucide-react';
 import { useFleetData } from '../hooks/useFleetData';
 
@@ -6,12 +6,11 @@ import { useFleetData } from '../hooks/useFleetData';
 import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet';
 import L from 'leaflet';
 
-// 1. Core Map Controller Component to smoothly pan the camera to the main cluster
+// Core Map Controller Component to smoothly pan the camera to the main cluster
 function MapUpdater({ coordinates }: { coordinates: [number, number][] }) {
   const map = useMap();
   React.useEffect(() => {
     if (coordinates.length > 0) {
-      // Create bounds based on current live tracking data matrices
       const bounds = L.latLngBounds(coordinates);
       map.fitBounds(bounds, { padding: [40, 40], maxZoom: 14 });
     }
@@ -19,7 +18,7 @@ function MapUpdater({ coordinates }: { coordinates: [number, number][] }) {
   return null;
 }
 
-// 2. Factory function to build custom DOM-styled markers that bypass Leaflet's blue legacy images
+// Factory function to build custom DOM-styled markers that bypass Leaflet's blue legacy images
 const createCustomMarker = (status: string) => {
   let colorClass = "bg-emerald-400 ring-emerald-500/30";
   if (status === "Critical") colorClass = "bg-red-500 ring-red-500/50 animate-pulse";
@@ -42,21 +41,30 @@ const createCustomMarker = (status: string) => {
 export default function FleetOverview() {
   const { fleet, alerts, msgPerSec } = useFleetData();
 
-  const activeAssets = Object.values(fleet);
-  const criticalCount = alerts.filter(a => a.type === 'Critical').length;
+  // LATENCY PROTECTION: Memoize aggregate operations so 5 concurrent
+  // high-frequency WebSocket vehicles don't cause browser execution chokes.
+  const activeAssets = useMemo(() => Object.values(fleet), [fleet]);
 
-  const defaultFleet = [
+  const criticalCount = useMemo(() =>
+    alerts.filter(a => a.type === 'Critical').length,
+    [alerts]
+  );
+
+  const defaultFleet = useMemo(() => [
     { id: "EV-HD-001", fallbackStatus: "Active", defaultLat: 37.7749, defaultLng: -122.4194 },
     { id: "EV-HD-002", fallbackStatus: "Charging", defaultLat: 37.7833, defaultLng: -122.4167 },
     { id: "EV-HD-003", fallbackStatus: "Active", defaultLat: 37.7699, defaultLng: -122.4468 },
     { id: "EV-HD-004", fallbackStatus: "Warning", defaultLat: 37.7599, defaultLng: -122.4368 },
-  ];
+  ], []);
 
-  // Compile active coordinates array dynamically to feed the automated viewport framing calculations
-  const mapCoordinates: [number, number][] = defaultFleet.map(v => {
-    const liveData = fleet[v.id];
-    return [liveData?.latitude || v.defaultLat, liveData?.longitude || v.defaultLng];
-  });
+  // Compute active coordinates array dynamically to feed the automated viewport framing calculations
+  const mapCoordinates = useMemo<[number, number][]>(() =>
+    defaultFleet.map(v => {
+      const liveData = fleet[v.id];
+      return [liveData?.latitude || v.defaultLat, liveData?.longitude || v.defaultLng];
+    }),
+    [fleet, defaultFleet]
+  );
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -126,7 +134,6 @@ export default function FleetOverview() {
           <h2 className="text-lg font-semibold">Live Geospatial Telemetry Layer</h2>
         </div>
 
-        {/* Physical Map Canvas Box Container */}
         <div className="h-96 w-full rounded-lg overflow-hidden border border-border bg-slate-900 z-10 relative">
           <MapContainer
             center={[37.7749, -122.4194]}
@@ -134,13 +141,11 @@ export default function FleetOverview() {
             className="h-full w-full"
             style={{ background: '#0f172a' }}
           >
-            {/* Dark Mode Cartographic Mesh Tiles */}
             <TileLayer
               attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>'
               url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
             />
 
-            {/* Rendered directly inside separate fragment blocks to prevent context-consumer mismatch */}
             {defaultFleet.map((v) => {
               const liveData = fleet[v.id];
               const lat = liveData?.latitude || v.defaultLat;

@@ -4,7 +4,7 @@ import asyncio
 import logging
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
-
+from fastapi.middleware.cors import CORSMiddleware
 if sys.platform.lower() == "win32" or os.name.lower() == "nt":
     from asyncio import set_event_loop_policy, WindowsSelectorEventLoopPolicy
     set_event_loop_policy(WindowsSelectorEventLoopPolicy())
@@ -120,6 +120,18 @@ async def lifespan(app: FastAPI):
         pass
 
 app = FastAPI(title="Industrial EV AI Platform", lifespan=lifespan)
+
+# Add this right below where your app is defined
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[
+        "http://localhost:3000",  # Your React development server
+        "http://localhost:5173",  # Standard Vite port fallback
+    ],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 app.include_router(health_router)
 app.include_router(ws_router)
